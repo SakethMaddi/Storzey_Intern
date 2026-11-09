@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String
+  orders    Order[]
+  createdAt DateTime @default(now())
+}
+
+model Order {
+  id            Int      @id @default(autoincrement())
+  itemName      String
+  totalAmount   Int
+  advance       Int
+  balance Int @default(0)
+  paymentStatus String   @default("PENDING")
+  customerId    Int
+  payments Payment[]
+  stages OrderStage[]
+  customer      Customer @relation(fields: [customerId], references: [id])
+  createdAt     DateTime @default(now())
+}
+
+model Payment {
+  id          Int      @id @default(autoincrement())
+  orderId     Int
+  amount      Int
+  status      String   @default("PENDING")
+  paymentType String
+  createdAt   DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+}
+
+model OrderStage {
+  id        Int      @id @default(autoincrement())
+  name      String
+  status    String   @default("PENDING")
+  orderId   Int
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+}

@@ -1,0 +1,150 @@
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family: Arial, sans-serif;
+  background: #f4f6fb;
+  color: #202938;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+h1, h2, h3 {
+  margin-top: 0;
+}
+
+button, input, select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  background: #2563eb;
+  color: white;
+}
+
+button:hover {
+  background: #1d4ed8;
+}
+
+input, select {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: white;
+  color: #202938;
+}
+
+input:focus, select:focus {
+  outline: 2px solid #93c5fd;
+  border-color: #2563eb;
+}
+
+@media (max-width: 600px) {
+  body {
+    font-size: 14px;
+  }
+
+  button {
+    padding: 9px 12px;
+  }
+
+  input, select {
+    font-size: 14px;
+  }
+}
+
+.order-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.order-card h3 {
+  color: #1e3a8a;
+  margin: 0 0 16px;
+}
+
+.order-card p {
+  margin: 10px 0;
+  color: #334155;
+}
+
+.order-card progress {
+  width: 100%;
+  height: 12px;
+  margin: 12px 0;
+  accent-color: #2563eb;
+}
+
+.order-card button {
+  margin: 8px 0;
+}
+.customer-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 10px 0;
+}
+
+.customer-card p {
+  margin: 5px 0;
+  color: #334155;
+}
+
+/* Form layout */
+input,
+select {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 10px 0;
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 15px;
+  background: #ffffff;
+}
+
+/* Form buttons */
+button {
+  padding: 11px 18px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Mobile layout */
+@media (max-width: 600px) {
+  .order-card,
+  .customer-card {
+    padding: 14px;
+  }
+
+  input,
+  select {
+    font-size: 14px;
+  }
+
+  button {
+    width: 100%;
+  }
+}
+
