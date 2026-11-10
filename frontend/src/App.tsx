@@ -1,8 +1,9 @@
 import "./App.css";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import CustomerOrderPage from "./CustomerOrderPage";
 
-function App() {
+function AdminApp() {
   const [orders, setOrders] = useState<any[]>([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -10,6 +11,7 @@ function App() {
   const [payments, setPayments] = useState<Record<number, any[]>>({});
   const [stages, setStages] = useState<Record<number, any[]>>({});
   const [selectedOrder, setSelectedOrder] = useState<number | null>(null);
+  const [promisedDate, setPromisedDate] = useState("");
 
   const [itemName, setItemName] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
@@ -158,8 +160,7 @@ function App() {
       !itemName.trim() ||
       Number(totalAmount) <= 0 ||
       Number(advance) < 0 ||
-      Number(advance) > Number(totalAmount) ||
-      !customerId
+      Number(advance) > Number(totalAmount) || !customerId || !promisedDate
     ) {
       alert("Please enter valid order details.");
       return;
@@ -171,6 +172,7 @@ function App() {
         totalAmount: Number(totalAmount),
         advance: Number(advance),
         customerId: Number(customerId),
+        promisedDate,
       });
 
       alert("Order created successfully!");
@@ -179,6 +181,7 @@ function App() {
       setTotalAmount("");
       setAdvance("");
       setCustomerId("");
+      setPromisedDate("");
 
       await fetchOrders();
     } catch (error) {
@@ -260,7 +263,13 @@ function App() {
           onChange={(e) => setAdvance(e.target.value)}
           required
         />
-
+        <input
+          type="date"
+          value={promisedDate}
+          min={new Date().toISOString().split("T")[0]}
+          onChange={(e) => setPromisedDate(e.target.value)}
+          required
+        />
         <button type="submit">Create Order</button>
       </form>
 
@@ -288,10 +297,31 @@ function App() {
               <>
                 <p>Item: {order.itemName}</p>
                 <p>Total: ₹{order.totalAmount}</p>
+                <p> Promised Delivery Date:{" "} {order.promisedDate ? new Date(order.promisedDate).toLocaleDateString("en-IN") : "Not specified"} </p>
                 <p>Advance: ₹{order.advance}</p>
                 <p>Balance: ₹{order.balance}</p>
                 <p>Amount Paid: ₹{amountPaid}</p>
                 <p>Payment Status: {order.paymentStatus}</p>
+                <div>
+                    <p>Customer Tracking Link:</p>
+
+                    <input
+                      type="text"
+                      value={`${window.location.origin}/track/${order.publicToken}`}
+                      readOnly
+                    />
+
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          `${window.location.origin}/track/${order.publicToken}`
+                        );
+                        alert("Tracking link copied!");
+                      }}
+                    >
+                      Copy Tracking Link
+                    </button>
+                  </div>
 
                 <h4>Record Payment</h4>
 
@@ -388,6 +418,17 @@ function App() {
       })}
     </div>
   );
+}
+
+function App() {
+  const path = window.location.pathname;
+  const match = path.match(/^\/track\/([^/]+)$/);
+
+  if (match) {
+    return <CustomerOrderPage token={match[1]} />;
+  }
+
+  return <AdminApp />;
 }
 
 export default App;

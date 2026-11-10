@@ -25,6 +25,8 @@ model Order {
   payments Payment[]
   stages OrderStage[]
   customer      Customer @relation(fields: [customerId], references: [id])
+  promisedDate  DateTime? @db.Date
+  publicToken String @unique @default(uuid())
   createdAt     DateTime @default(now())
 }
 
@@ -34,6 +36,8 @@ model Payment {
   amount      Int
   status      String   @default("PENDING")
   paymentType String
+  razorpayOrderId   String? @unique
+  razorpayPaymentId String? @unique
   createdAt   DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id])
@@ -47,4 +51,13 @@ model OrderStage {
   createdAt DateTime @default(now())
 
   order Order @relation(fields: [orderId], references: [id])
+}
+
+model WebhookEvent {
+  id          Int      @id @default(autoincrement())
+  eventId     String   @unique
+  eventType   String
+  payload     Json
+  processedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
 }
