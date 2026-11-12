@@ -3,29 +3,38 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-"scripts": {
-  "build": "prisma generate && tsc --noEmit",
-  "dev": "tsx src/server.ts",
-  "start": "tsx src/server.ts",
-  "db:migrate": "prisma migrate deploy",
-  "test": "echo \"Error: no test specified\" && exit 1"
-},
+  "scripts": {
+    "build": "prisma generate && tsc",
+    "dev": "tsx src/server.ts",
+    "start": "node dist/server.js",
+    "db:migrate": "prisma migrate deploy",
+    "test": "vitest run"
+  },
   "keywords": [],
   "type": "module",
   "dependencies": {
+    "@fastify/cookie": "^11.1.5",
     "@fastify/cors": "^11.4.1",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/jwt": "^10.2.7",
+    "@fastify/rate-limit": "^10.3.0",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
+    "@types/nodemailer": "^8.0.2",
+    "bcrypt": "^6.0.0",
     "dotenv": "^18.0.9",
     "fastify": "^5.12.8",
     "fastify-raw-body": "^6.0.3",
+    "nodemailer": "^10.5.0",
     "pg": "^8.23.1",
-    "razorpay": "^2.9.8"
+    "prisma": "^7.10.1",
+    "razorpay": "^2.9.8",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
-    "prisma": "^7.10.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"

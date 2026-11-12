@@ -7,40 +7,71 @@ datasource db {
 }
 
 model Customer {
-  id        Int      @id @default(autoincrement())
-  name      String
-  phone     String
-  orders    Order[]
-  createdAt DateTime @default(now())
+  id         Int       @id @default(autoincrement())
+  ownerId    Int
+  name       String
+  phone      String
+  email      String?
+  orders     Order[]
+  createdAt  DateTime  @default(now())
+  isArchived Boolean   @default(false)
+  archivedAt DateTime?
+
+  owner      Owner     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+
+  @@unique([id, ownerId])
+  @@unique([ownerId, phone])
+  @@index([ownerId, name])
+  @@index([email])
+  @@index([ownerId, isArchived])
 }
 
 model Order {
-  id            Int      @id @default(autoincrement())
-  itemName      String
-  totalAmount   Int
-  advance       Int
-  balance Int @default(0)
-  paymentStatus String   @default("PENDING")
-  customerId    Int
-  payments Payment[]
-  stages OrderStage[]
-  customer      Customer @relation(fields: [customerId], references: [id])
-  promisedDate  DateTime? @db.Date
-  publicToken String @unique @default(uuid())
-  createdAt     DateTime @default(now())
+  id                    Int          @id @default(autoincrement())
+  ownerId               Int
+  customerId            Int
+  itemName              String
+  totalAmount           Int
+  advance               Int
+  balance               Int          @default(0)
+  paymentStatus         String       @default("PENDING")
+  status                String       @default("ACTIVE")
+  promisedDate          DateTime?    @db.Date
+  paymentLinkExpiresAt  DateTime?
+  publicToken           String       @unique @default(uuid())
+  createdAt             DateTime     @default(now())
+  isArchived            Boolean      @default(false)
+  archivedAt            DateTime?
+  cancelledAt           DateTime?
+  cancelledBy           String?
+  cancellationReason    String?
+
+  owner                 Owner        @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  customer              Customer     @relation(fields: [customerId, ownerId], references: [id, ownerId], onDelete: Restrict)
+  payments              Payment[]
+  stages                OrderStage[]
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@index([ownerId, customerId])
+  @@index([ownerId, paymentStatus])
+  @@index([ownerId, status])
+  @@index([ownerId, isArchived])
 }
 
 model Payment {
-  id          Int      @id @default(autoincrement())
-  orderId     Int
-  amount      Int
-  status      String   @default("PENDING")
-  paymentType String
-  razorpayOrderId   String? @unique
-  razorpayPaymentId String? @unique
-  createdAt   DateTime @default(now())
+  id                Int          @id @default(autoincrement())
+  orderId           Int
+  amount            Int
+  status            String       @default("PENDING")
+  paymentType       String
+  razorpayOrderId   String?      @unique
+  razorpayPaymentId String?      @unique
+  createdAt         DateTime     @default(now())
 
-  order Order @relation(fields: [orderId], references: [id])
+  order             Order        @relation(fields: [orderId], references: [id])
+  emailOutbox       EmailOutbox?
+
+  @@index([orderId])
 }
 
 model OrderStage {
@@ -48,9 +79,13 @@ model OrderStage {
   name      String
   status    String   @default("PENDING")
   orderId   Int
+  position  Int      @default(0)
   createdAt DateTime @default(now())
 
-  order Order @relation(fields: [orderId], references: [id])
+  order     Order    @relation(fields: [orderId], references: [id])
+
+  @@unique([orderId, name])
+  @@index([orderId])
 }
 
 model WebhookEvent {
@@ -60,4 +95,40 @@ model WebhookEvent {
   payload     Json
   processedAt DateTime @default(now())
   createdAt   DateTime @default(now())
+}
+
+model Owner {
+  id           Int        @id @default(autoincrement())
+  name         String
+  email        String     @unique
+  phone        String?    @unique
+  businessName String?
+  password     String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  customers    Customer[]
+  orders       Order[]
+}
+
+model EmailOutbox {
+  id          Int       @id @default(autoincrement())
+  paymentId   Int       @unique
+  recipient   String
+  subject     String
+  htmlContent String
+  status      String    @default("PENDING") // PENDING, PROCESSING, SENT, FAILED
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  lastError   String?
+  lockedAt    DateTime?
+  lockedBy    String?
+  nextRetryAt DateTime  @default(now())
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  payment     Payment   @relation(fields: [paymentId], references: [id])
+
+  @@index([status, nextRetryAt])
 }
