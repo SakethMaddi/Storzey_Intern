@@ -320,10 +320,6 @@ export async function createServer(customEnv?: ValidatedEnv): Promise<FastifyIns
   await app.register(dashboardRoutes);
 
   // Health check endpoints for Railway / deployment platform probes
-  app.get("/", async (_request, reply) => {
-    return reply.code(200).send({ status: "ok", service: "advance-pay-backend" });
-  });
-
   app.get("/health", async (_request, reply) => {
     return reply.code(200).send({ status: "ok", service: "advance-pay-backend" });
   });
