@@ -1,3 +1,4 @@
+import http from "node:http";
 import { fileURLToPath } from "node:url";
 import type { FastifyInstance } from "fastify";
 import { validateEnv, type ValidatedEnv } from "./lib/env.js";
@@ -15,7 +16,8 @@ export interface ShutdownOptions {
 export function setupGracefulShutdown(
   app: FastifyInstance,
   prisma: { $disconnect: () => Promise<any> },
-  options: ShutdownOptions = {}
+  options: ShutdownOptions = {},
+  extraServers: http.Server[] = []
 ) {
   const timeoutMs = options.timeoutMs ?? 10000;
   const exitProcess = options.exitProcess ?? true;
@@ -46,6 +48,11 @@ export function setupGracefulShutdown(
       const cleanupPromise = (async () => {
         // Step 1: Call and await app.close() first
         await app.close();
+        for (const extra of extraServers) {
+          try {
+            await new Promise<void>((resolve) => extra.close(() => resolve()));
+          } catch {}
+        }
         console.log("HTTP server closed.");
 
         // Step 1b: Stop background email outbox worker
@@ -134,17 +141,49 @@ export async function bootstrap(exitOnError: boolean = true) {
 
     const app = await createServer(validatedEnv);
 
-    // Register graceful shutdown handlers
-    setupGracefulShutdown(app, prisma, {
-      timeoutMs: 10000,
-      exitProcess: true,
-    });
-
     await app.listen({
       port: validatedEnv.PORT,
       host: LISTEN_HOST,
     });
     console.log(`Server running at http://localhost:${validatedEnv.PORT}`);
+
+    // Start secondary listeners on common deployment ports (5001, 8080, 3000, 8000)
+    // to prevent 502 Bad Gateway when Railway's public domain target port differs from PORT
+    const extraServers: http.Server[] = [];
+    const candidatePorts = [8080, 5001, 3000, 8000].filter(
+      (port) => port !== validatedEnv.PORT
+    );
+
+    for (const port of candidatePorts) {
+      try {
+        const extraServer = http.createServer((req, res) => {
+          app.server.emit("request", req, res);
+        });
+        extraServer.on("upgrade", (req, socket, head) => {
+          app.server.emit("upgrade", req, socket, head);
+        });
+        extraServer.on("error", (err: any) => {
+          console.warn(`Secondary port ${port} listener skipped: ${err.message}`);
+        });
+        extraServer.listen(port, LISTEN_HOST, () => {
+          console.log(`Secondary HTTP listener active at http://${LISTEN_HOST}:${port}`);
+        });
+        extraServers.push(extraServer);
+      } catch (err: any) {
+        console.warn(`Failed to bind secondary port ${port}: ${err.message}`);
+      }
+    }
+
+    // Register graceful shutdown handlers
+    setupGracefulShutdown(
+      app,
+      prisma,
+      {
+        timeoutMs: 10000,
+        exitProcess: true,
+      },
+      extraServers
+    );
 
     // Start durable background email outbox worker (immediate recovery + periodic 30s polling)
     try {
