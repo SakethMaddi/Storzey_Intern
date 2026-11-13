@@ -86,17 +86,25 @@ export default async function middleware(request: Request): Promise<Response> {
   );
 
   const hasBody = request.method !== "GET" && request.method !== "HEAD";
-  const upstream = await fetch(target, {
-    method: request.method,
-    headers,
-    body: hasBody ? request.body : undefined,
-    redirect: "manual",
-    ...(hasBody ? { duplex: "half" } : {}),
-  } as RequestInit);
+  try {
+    const upstream = await fetch(target, {
+      method: request.method,
+      headers,
+      body: hasBody ? request.body : undefined,
+      redirect: "manual",
+      ...(hasBody ? { duplex: "half" } : {}),
+    } as RequestInit);
 
-  return new Response(upstream.body, {
-    status: upstream.status,
-    statusText: upstream.statusText,
-    headers: copyProxiedHeaders(upstream),
-  });
+    return new Response(upstream.body, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: copyProxiedHeaders(upstream),
+    });
+  } catch (err: any) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return proxyFailure(
+      502,
+      `Backend gateway error: Unable to connect to upstream API (${msg})`
+    );
+  }
 }

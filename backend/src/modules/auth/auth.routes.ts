@@ -103,6 +103,18 @@ export async function authRoutes(app: FastifyInstance) {
           },
         });
       } catch (err: any) {
+        if (err?.code === "P2002") {
+          const target = Array.isArray(err?.meta?.target)
+            ? err.meta.target.join(",")
+            : String(err?.meta?.target || "");
+          const isPhone = target.includes("phone");
+          return reply.code(409).send({
+            success: false,
+            message: isPhone
+              ? "An owner with this phone number already exists."
+              : "An owner with this email already exists.",
+          });
+        }
         const refId = `ERR-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
         request.log.error(
           { refId, err, endpoint: "/auth/register" },

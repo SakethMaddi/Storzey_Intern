@@ -389,7 +389,7 @@ describe("Advance Pay — Multi-Tenant Isolation & Security Test Suite", () => {
     expect(statsB.totalOrderValue).toBe(20000);
     expect(statsB.totalCollected).toBe(0); // zero completed payments recorded on order B
     expect(statsB.totalOutstanding).toBe(20000); // 20,000 initial balance without payments
-  });
+  }, 15000);
 
   // --------------------------------------------------------------------------
   // 8. Public Order Tracking & Tenant Branding

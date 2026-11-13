@@ -125,10 +125,21 @@ export function OwnerSignUpPage({
         return;
       }
 
+      if (status === 502 || status === 503) {
+        setError(
+          responseData?.message ||
+            "Unable to connect to the backend server. Please try again in a few moments."
+        );
+        setRefId("");
+        return;
+      }
+
       const serverRefId = responseData?.refId || "";
       setRefId(serverRefId);
       setError(
-        "We couldn't complete your registration right now. Please try again in a few moments. If the issue continues, contact support."
+        serverRefId
+          ? `We couldn't complete your registration right now. Please try again in a few moments. If the issue continues, contact support (Reference: ${serverRefId}).`
+          : "We couldn't complete your registration right now. Please try again in a few moments. If the issue continues, contact support."
       );
     } finally {
       submitLock.current = false;

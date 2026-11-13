@@ -175,19 +175,21 @@ export class AuthService {
    */
   async registerOwner(input: RegisterOwnerInput): Promise<RegisterOwnerResult> {
     const { name, email, phone, businessName, password } = input;
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = phone?.trim() || null;
 
     // Check for existing email conflict
     const existingEmail = await prisma.owner.findUnique({
-      where: { email },
+      where: { email: cleanEmail },
     });
     if (existingEmail) {
       return { status: "EMAIL_EXISTS" };
     }
 
     // Check for existing phone conflict if phone provided
-    if (phone) {
+    if (cleanPhone) {
       const existingPhone = await prisma.owner.findUnique({
-        where: { phone },
+        where: { phone: cleanPhone },
       });
       if (existingPhone) {
         return { status: "PHONE_EXISTS" };
@@ -197,28 +199,41 @@ export class AuthService {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    const newOwner = await prisma.owner.create({
-      data: {
-        name,
-        email,
-        phone: phone || null,
-        businessName: businessName || null,
-        password: hashedPassword,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        businessName: true,
-        createdAt: true,
-      },
-    });
+    try {
+      const newOwner = await prisma.owner.create({
+        data: {
+          name: name.trim(),
+          email: cleanEmail,
+          phone: cleanPhone,
+          businessName: businessName?.trim() || null,
+          password: hashedPassword,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          businessName: true,
+          createdAt: true,
+        },
+      });
 
-    return {
-      status: "SUCCESS",
-      owner: newOwner,
-    };
+      return {
+        status: "SUCCESS",
+        owner: newOwner,
+      };
+    } catch (err: any) {
+      if (err.code === "P2002") {
+        const target = Array.isArray(err.meta?.target)
+          ? err.meta.target.join(",")
+          : String(err.meta?.target || "");
+        if (target.includes("phone")) {
+          return { status: "PHONE_EXISTS" };
+        }
+        return { status: "EMAIL_EXISTS" };
+      }
+      throw err;
+    }
   }
 
   /**

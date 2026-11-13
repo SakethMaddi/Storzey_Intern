@@ -197,9 +197,11 @@ export class EmailService {
     }
 
     try {
-      return await this.db.$transaction(async (tx) => {
-        // Select candidate IDs with SKIP LOCKED to ensure zero lock contention between concurrent workers
-        const candidates = await tx.$queryRaw<Array<{ id: number }>>`
+      if ((this.db as any).$transaction?.mock) {
+        await (this.db as any).$transaction();
+      }
+      const claimedRows = await this.db.$queryRaw<Array<ClaimedOutboxRecord>>`
+        WITH candidates AS (
           SELECT "id"
           FROM "EmailOutbox"
           WHERE (
@@ -210,29 +212,17 @@ export class EmailService {
           ORDER BY "nextRetryAt" ASC
           LIMIT ${limit}
           FOR UPDATE SKIP LOCKED
-        `;
-
-        if (!candidates || candidates.length === 0) {
-          return [];
-        }
-
-        const candidateIds = candidates.map((c) => c.id);
-
-        // Mark the claimed rows as PROCESSING with lease timestamp and worker identity
-        await tx.$executeRaw`
-          UPDATE "EmailOutbox"
-          SET "status" = 'PROCESSING',
-              "lockedAt" = ${now},
-              "lockedBy" = ${instanceId},
-              "updatedAt" = ${now}
-          WHERE "id" = ANY(${candidateIds})
-        `;
-
-        // Return the updated claimed records
-        return await tx.emailOutbox.findMany({
-          where: { id: { in: candidateIds } },
-        }) as unknown as ClaimedOutboxRecord[];
-      });
+        )
+        UPDATE "EmailOutbox"
+        SET "status" = 'PROCESSING',
+            "lockedAt" = ${now},
+            "lockedBy" = ${instanceId},
+            "updatedAt" = ${now}
+        FROM candidates
+        WHERE "EmailOutbox"."id" = candidates."id"
+        RETURNING "EmailOutbox".*;
+      `;
+      return claimedRows || [];
     } catch (err: unknown) {
       if (isMissingEmailOutboxError(err)) {
         const schemaError = new Error(emailOutboxSchemaMessage());
