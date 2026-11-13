@@ -1,5 +1,6 @@
 import React from "react";
 import type { Customer } from "../../../types";
+import { capitalizeFirstLetter } from "../../../validation";
 
 export interface CustomerEditModalProps {
   customer: Customer;
@@ -52,9 +53,10 @@ export function CustomerEditModal({
             <span>Customer name</span>
             <input
               value={editName}
-              placeholder="Full customer name"
+              maxLength={100}
+              placeholder="Full customer name (e.g. Priya Sharma)"
               className={errors.name ? "input-error" : ""}
-              onChange={(e) => onNameChange(e.target.value)}
+              onChange={(e) => onNameChange(capitalizeFirstLetter(e.target.value))}
               disabled={submitting}
               aria-invalid={errors.name ? true : undefined}
               required
@@ -76,6 +78,11 @@ export function CustomerEditModal({
               value={editPhone}
               className={errors.phone ? "input-error" : ""}
               onChange={(e) => onPhoneChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (["e", "E", "+", "-", "."].includes(e.key)) {
+                  e.preventDefault();
+                }
+              }}
               disabled={submitting}
               aria-invalid={errors.phone ? true : undefined}
               required

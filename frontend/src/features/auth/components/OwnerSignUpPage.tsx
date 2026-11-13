@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../config";
-import { ownerRegisterSchema } from "../../../validation";
+import { ownerRegisterSchema, capitalizeFirstLetter } from "../../../validation";
 import { PasswordInput } from "../../../shared/components/PasswordInput";
 
 export interface OwnerSignUpPageProps {
@@ -177,9 +177,10 @@ export function OwnerSignUpPage({
               placeholder="e.g. Anusha Rao"
               value={name}
               onChange={(e) => {
-                setName(e.target.value);
+                setName(capitalizeFirstLetter(e.target.value));
                 if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: "" }));
               }}
+              onBlur={() => setName((prev) => capitalizeFirstLetter(prev.trim()))}
               disabled={submitting}
               required
               style={fieldErrors.name ? { borderColor: "#ef4444" } : undefined}
@@ -200,9 +201,10 @@ export function OwnerSignUpPage({
               placeholder="e.g. Anusha Haute Couture"
               value={businessName}
               onChange={(e) => {
-                setBusinessName(e.target.value);
+                setBusinessName(capitalizeFirstLetter(e.target.value));
                 if (fieldErrors.businessName) setFieldErrors((prev) => ({ ...prev, businessName: "" }));
               }}
+              onBlur={() => setBusinessName((prev) => capitalizeFirstLetter(prev.trim()))}
               disabled={submitting}
               style={fieldErrors.businessName ? { borderColor: "#ef4444" } : undefined}
             />
@@ -225,6 +227,7 @@ export function OwnerSignUpPage({
                 setEmail(e.target.value);
                 if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: "" }));
               }}
+              onBlur={() => setEmail((prev) => prev.trim().toLowerCase())}
               disabled={submitting}
               required
               style={fieldErrors.email ? { borderColor: "#ef4444" } : undefined}
@@ -242,6 +245,8 @@ export function OwnerSignUpPage({
             </label>
             <input
               type="tel"
+              inputMode="numeric"
+              maxLength={10}
               placeholder="e.g. 9876543210"
               value={phone}
               onChange={(e) => {

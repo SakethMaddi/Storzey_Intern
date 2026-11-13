@@ -6,6 +6,7 @@ import {
   customerSchema,
   orderFormSchema,
   validateStrictIndianPhone,
+  capitalizeFirstLetter,
 } from "./validation";
 import { API_BASE_URL } from "./config";
 import type { Customer, Order, OrderStage, Payment, PaginationMeta } from "./types";
@@ -626,13 +627,68 @@ function AdminApp({
     }
   };
 
+  const handleViewRecentOrder = async (orderId: number) => {
+    if (activeTab !== "dashboard") {
+      setActiveTab("dashboard");
+    }
+
+    // Reset filters that could hide the recent order
+    setPaymentStatusFilter("ALL");
+    setOrderSearchTerm("");
+    setShowArchivedOrders(false);
+
+    // If order is not loaded in current orders list, fetch it by ID
+    let targetOrder = orders.find((o) => o.id === orderId);
+    if (!targetOrder) {
+      try {
+        const res = await axios.get(`${API_BASE}/orders/${orderId}`);
+        if (res.data?.success && res.data.data) {
+          targetOrder = res.data.data;
+          setOrders((prev) => [targetOrder!, ...prev.filter((o) => o.id !== orderId)]);
+          if (targetOrder?.payments) {
+            setPayments((prev) => ({ ...prev, [orderId]: targetOrder!.payments! }));
+          }
+          if (targetOrder?.stages) {
+            setStages((prev) => ({ ...prev, [orderId]: targetOrder!.stages! }));
+          }
+        }
+      } catch (err: any) {
+        console.error("Failed to load order details for ID:", orderId, err);
+        handleAuthError(err);
+      }
+    }
+
+    setSelectedOrder(orderId);
+
+    if (!payments[orderId] || !stages[orderId]) {
+      await Promise.all([fetchPayments(orderId), fetchStages(orderId)]);
+    }
+
+    window.requestAnimationFrame(() => {
+      const el =
+        document.getElementById(`order-card-${orderId}`) ||
+        document.getElementById(`order-row-${orderId}`) ||
+        document.getElementById("orders-in-progress");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  };
+
   const openCustomerOrder = (customer: Customer, orderId?: number) => {
     setPaymentStatusFilter("ALL");
     setOrderSearchTerm(customer.phone);
     if (orderId != null && selectedOrder !== orderId) {
       void toggleOrderDetails(orderId);
     }
-    document.getElementById("orders-in-progress")?.scrollIntoView({ behavior: "smooth" });
+    window.requestAnimationFrame(() => {
+      const el = orderId
+        ? document.getElementById(`order-card-${orderId}`) ||
+          document.getElementById(`order-row-${orderId}`) ||
+          document.getElementById("orders-in-progress")
+        : document.getElementById("orders-in-progress");
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
 
   useEffect(() => {
@@ -915,9 +971,13 @@ function AdminApp({
 
   const handleAddCustomStage = () => {
     setStageInputError("");
-    const trimmed = newStageInput.trim();
+    const trimmed = capitalizeFirstLetter(newStageInput.trim());
     if (!trimmed) {
       setStageInputError("Stage name cannot be empty");
+      return;
+    }
+    if (trimmed.length > 50) {
+      setStageInputError("Stage name cannot exceed 50 characters");
       return;
     }
     if (orderStages.length >= 15) {
@@ -963,7 +1023,7 @@ function AdminApp({
     setStageInputError("");
     setOrderStages((prev) => {
       const copy = [...prev];
-      copy[index] = newName;
+      copy[index] = capitalizeFirstLetter(newName);
       return copy;
     });
   };
@@ -1011,7 +1071,9 @@ function AdminApp({
       setOrderErrors({ stages: "At least one production stage is required" });
       return;
     }
-    const sanitizedStages = orderStages.map((s) => s.trim()).filter((s) => s.length > 0);
+    const sanitizedStages = orderStages
+      .map((s) => capitalizeFirstLetter(s.trim()))
+      .filter((s) => s.length > 0);
     if (sanitizedStages.length !== orderStages.length) {
       setOrderErrors({ stages: "Stage names cannot be empty" });
       return;
@@ -1158,10 +1220,11 @@ function AdminApp({
             onStatusFilterChange={setPaymentStatusFilter}
             onToggleDetails={toggleOrderDetails}
             onPaymentAmountChange={(orderId, amount) => {
+              const sanitized = amount.replace(/\D/g, "");
               setPaymentInputs((prev) => ({
                 ...prev,
                 [orderId]: {
-                  amount,
+                  amount: sanitized,
                   type: prev[orderId]?.type || "ADVANCE",
                 },
               }));
@@ -1252,7 +1315,7 @@ function AdminApp({
                 successMessage={customerSuccess}
                 isSubmitting={isSubmittingCustomer}
                 onNameChange={(val) => {
-                  setName(val);
+                  setName(capitalizeFirstLetter(val));
                   if (customerErrors.name) {
                     setCustomerErrors((prev) => ({ ...prev, name: undefined }));
                   }
@@ -1285,14 +1348,22 @@ function AdminApp({
               onStartEdit={startEditCustomer}
               onCancelEdit={cancelEditCustomer}
               onEditNameChange={(val) => {
-                setEditCustomerName(val);
+                setEditCustomerName(capitalizeFirstLetter(val));
                 if (editCustomerErrors.name) {
                   setEditCustomerErrors((prev) => ({ ...prev, name: undefined }));
                 }
               }}
               onEditPhoneChange={(val) => {
-                setEditCustomerPhone(val);
-                if (editCustomerErrors.phone) {
+                const digits = val.replace(/\D/g, "").slice(0, 10);
+                setEditCustomerPhone(digits);
+                if (!digits) {
+                  setEditCustomerErrors((prev) => ({ ...prev, phone: undefined }));
+                  return;
+                }
+                const check = validateStrictIndianPhone(digits);
+                if (!check.isValid) {
+                  setEditCustomerErrors((prev) => ({ ...prev, phone: check.message }));
+                } else {
                   setEditCustomerErrors((prev) => ({ ...prev, phone: undefined }));
                 }
               }}
@@ -1350,19 +1421,21 @@ function AdminApp({
                 }
               }}
               onItemNameChange={(val) => {
-                setItemName(val);
+                setItemName(capitalizeFirstLetter(val));
                 if (orderErrors.itemName) {
                   setOrderErrors((prev) => ({ ...prev, itemName: undefined }));
                 }
               }}
               onTotalAmountChange={(val) => {
-                setTotalAmount(val);
+                const digits = val.replace(/\D/g, "");
+                setTotalAmount(digits);
                 if (orderErrors.totalAmount) {
                   setOrderErrors((prev) => ({ ...prev, totalAmount: undefined }));
                 }
               }}
               onAdvanceChange={(val) => {
-                setAdvance(val);
+                const digits = val.replace(/\D/g, "");
+                setAdvance(digits);
                 if (orderErrors.advance) {
                   setOrderErrors((prev) => ({ ...prev, advance: undefined }));
                 }
@@ -1373,7 +1446,7 @@ function AdminApp({
                   setOrderErrors((prev) => ({ ...prev, promisedDate: undefined }));
                 }
               }}
-              onNewStageInputChange={setNewStageInput}
+              onNewStageInputChange={(val) => setNewStageInput(capitalizeFirstLetter(val))}
               onAddStage={handleAddCustomStage}
               onRemoveStage={handleRemoveStage}
               onMoveStage={handleMoveStage}
@@ -1386,7 +1459,7 @@ function AdminApp({
           {/* 7. Recent Orders */}
           <RecentOrdersSection
             recentOrders={dashboardStats?.recentOrders ?? []}
-            onViewOrderDetails={toggleOrderDetails}
+            onViewOrderDetails={handleViewRecentOrder}
           />
 
           {/* 8. Recent Payment Activity */}

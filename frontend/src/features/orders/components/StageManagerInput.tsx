@@ -1,3 +1,5 @@
+import { capitalizeFirstLetter } from "../../../validation";
+
 export interface StageManagerInputProps {
   stages: string[];
   newStageInput: string;
@@ -61,14 +63,15 @@ export function StageManagerInput({
 
           return (
             <div key={index} className="stage-row">
-              <span className="stage-row-number">
+              <span className="stage-row-number" aria-hidden="true">
                 {index + 1}.
               </span>
               <input
                 type="text"
                 value={stageName}
+                maxLength={50}
                 disabled={disabled}
-                onChange={(e) => onEditStageName(index, e.target.value)}
+                onChange={(e) => onEditStageName(index, capitalizeFirstLetter(e.target.value))}
                 placeholder={`Stage ${index + 1} name`}
                 className="stage-row-input"
                 aria-label={`Stage ${index + 1} name`}
@@ -126,8 +129,9 @@ export function StageManagerInput({
             type="text"
             placeholder="Enter new stage name..."
             value={newStageInput}
+            maxLength={50}
             disabled={disabled || stages.length >= 15}
-            onChange={(e) => onNewStageInputChange(e.target.value)}
+            onChange={(e) => onNewStageInputChange(capitalizeFirstLetter(e.target.value))}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -143,11 +147,21 @@ export function StageManagerInput({
             onClick={onAddStage}
             className="stages-add-btn"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: "4px" }}>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            Add Production Stage
+            <span>Add Production Stage</span>
           </button>
         </div>
       </div>

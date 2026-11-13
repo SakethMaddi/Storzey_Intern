@@ -1,6 +1,7 @@
 import React from "react";
 import type { Customer } from "../../../types";
 import { StageManagerInput } from "./StageManagerInput";
+import { capitalizeFirstLetter } from "../../../validation";
 
 export interface OrderCreateFormProps {
   customers: Customer[];
@@ -127,10 +128,11 @@ export function OrderCreateForm({
               </label>
               <input
                 id="order-item-name"
-                placeholder="Item name"
+                placeholder="e.g. Silk Lehanga"
                 value={itemName}
+                maxLength={100}
                 className={orderErrors.itemName ? "input-error" : ""}
-                onChange={(e) => onItemNameChange(e.target.value)}
+                onChange={(e) => onItemNameChange(capitalizeFirstLetter(e.target.value))}
                 disabled={isSubmittingOrder}
                 required
               />
@@ -153,10 +155,18 @@ export function OrderCreateForm({
               <input
                 id="order-total-amount"
                 type="number"
+                inputMode="numeric"
+                min="1"
+                step="1"
                 placeholder="Total amount (₹)"
                 value={totalAmount}
                 className={orderErrors.totalAmount ? "input-error" : ""}
-                onChange={(e) => onTotalAmountChange(e.target.value)}
+                onChange={(e) => onTotalAmountChange(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => {
+                  if (["e", "E", "+", "-", "."].includes(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
                 disabled={isSubmittingOrder}
                 required
               />
@@ -173,10 +183,18 @@ export function OrderCreateForm({
               <input
                 id="order-advance-amount"
                 type="number"
+                inputMode="numeric"
+                min="0"
+                step="1"
                 placeholder="Advance amount (₹)"
                 value={advance}
                 className={orderErrors.advance ? "input-error" : ""}
-                onChange={(e) => onAdvanceChange(e.target.value)}
+                onChange={(e) => onAdvanceChange(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => {
+                  if (["e", "E", "+", "-", "."].includes(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
                 disabled={isSubmittingOrder}
                 required
               />

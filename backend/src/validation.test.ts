@@ -14,6 +14,8 @@ import {
   passwordSchema,
   loginSchema,
   ownerRegisterSchema,
+  capitalizeFirstLetter,
+  isValidHumanName,
 } from "./lib/validation.js";
 
 describe("Strict Indian Phone Validation Unit Tests", () => {
@@ -372,6 +374,71 @@ describe("Validation Unit Tests", () => {
         expect(loginParsed).toBe(tc.expected);
         expect(regParsed).toBe(tc.expected);
       }
+    });
+  });
+
+  describe("Auto-Capitalization & Name Validation", () => {
+    it("capitalizes the first letter of human text while preserving subsequent words", () => {
+      expect(capitalizeFirstLetter("anusha")).toBe("Anusha");
+      expect(capitalizeFirstLetter("lehanga")).toBe("Lehanga");
+      expect(capitalizeFirstLetter("my boutique")).toBe("My boutique");
+      expect(capitalizeFirstLetter("12 main road")).toBe("12 main road");
+      expect(capitalizeFirstLetter("  anusha")).toBe("  Anusha");
+      expect(capitalizeFirstLetter("Anusha")).toBe("Anusha");
+      expect(capitalizeFirstLetter("")).toBe("");
+    });
+
+    it("preserves multibyte Indic script names", () => {
+      expect(capitalizeFirstLetter("ప్రియా శర్మ")).toBe("ప్రియా శర్మ");
+      expect(capitalizeFirstLetter("अमित शर्मा")).toBe("अमित शर्मा");
+    });
+
+    it("validates human names correctly rejecting digits and symbols", () => {
+      expect(isValidHumanName("Anusha Rao")).toBe(true);
+      expect(isValidHumanName("K. V. Raman")).toBe(true);
+      expect(isValidHumanName("Mary-Jane")).toBe(true);
+      expect(isValidHumanName("O'Connor")).toBe(true);
+      expect(isValidHumanName("ప్రియా శర్మ")).toBe(true);
+      expect(isValidHumanName("अमित शर्मा")).toBe(true);
+
+      // Rejections
+      expect(isValidHumanName("Anusha123")).toBe(false);
+      expect(isValidHumanName("Anusha@#$")).toBe(false);
+      expect(isValidHumanName("   ")).toBe(false);
+      expect(isValidHumanName("---")).toBe(false);
+    });
+
+    it("customerSchema transforms and capitalizes customer names", () => {
+      const res = customerSchema.safeParse({ name: "priya sharma", phone: "9876543210" });
+      expect(res.success).toBe(true);
+      if (res.success) {
+        expect(res.data.name).toBe("Priya sharma");
+      }
+    });
+
+    it("orderCreateSchema transforms and capitalizes item name", () => {
+      const res = orderCreateSchema.safeParse({
+        customerId: 1,
+        itemName: "silk lehanga",
+        totalAmount: 12000,
+        advance: 3000,
+        promisedDate: "2026-12-25",
+      });
+      expect(res.success).toBe(true);
+      if (res.success) {
+        expect(res.data.itemName).toBe("Silk lehanga");
+      }
+    });
+
+    it("orderCreateSchema rejects delivery dates in the past", () => {
+      const res = orderCreateSchema.safeParse({
+        customerId: 1,
+        itemName: "Silk Lehanga",
+        totalAmount: 12000,
+        advance: 3000,
+        promisedDate: "2020-01-01",
+      });
+      expect(res.success).toBe(false);
     });
   });
 });

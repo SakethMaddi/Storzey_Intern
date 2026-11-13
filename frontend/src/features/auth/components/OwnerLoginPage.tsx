@@ -157,6 +157,7 @@ export function OwnerLoginPage({
                 setEmail(e.target.value);
                 if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: "" }));
               }}
+              onBlur={() => setEmail((prev) => prev.trim().toLowerCase())}
               disabled={submitting}
               required
               style={fieldErrors.email ? { borderColor: "#ef4444" } : undefined}

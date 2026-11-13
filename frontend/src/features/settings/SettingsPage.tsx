@@ -2,6 +2,7 @@ import { useState } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../config";
 import { PasswordInput } from "../../shared/components/PasswordInput";
+import { capitalizeFirstLetter, isValidHumanName, validateStrictIndianPhone } from "../../validation";
 
 const API_BASE = API_BASE_URL;
 
@@ -47,9 +48,22 @@ export function SettingsPage({
     setProfileError("");
     setProfileSuccess("");
 
-    const trimmedName = profileName.trim();
+    const trimmedName = capitalizeFirstLetter(profileName.trim());
     const trimmedPhone = profilePhone.trim();
-    const trimmedBusiness = profileBusiness.trim();
+    const trimmedBusiness = capitalizeFirstLetter(profileBusiness.trim());
+
+    if (trimmedName && !isValidHumanName(trimmedName)) {
+      setProfileError("Owner name can only contain letters, spaces, hyphens, apostrophes, and dots.");
+      return;
+    }
+
+    if (trimmedPhone) {
+      const phoneCheck = validateStrictIndianPhone(trimmedPhone);
+      if (!phoneCheck.isValid) {
+        setProfileError(phoneCheck.message || "Invalid Indian mobile number.");
+        return;
+      }
+    }
 
     // Build only the changed fields
     const payload: { name?: string; phone?: string; businessName?: string } = {};
@@ -77,9 +91,10 @@ export function SettingsPage({
         businessName: updated?.businessName ?? (trimmedBusiness || null),
       });
       setTimeout(() => setProfileSuccess(""), 3000);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errObj = err as { response?: { data?: { message?: string } } };
       const msg =
-        err.response?.data?.message || "Failed to update profile. Please try again.";
+        errObj.response?.data?.message || "Failed to update profile. Please try again.";
       setProfileError(msg);
     } finally {
       setSavingProfile(false);
@@ -118,9 +133,10 @@ export function SettingsPage({
       setTimeout(() => {
         onLogout();
       }, 2000);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errObj = err as { response?: { data?: { message?: string } } };
       const msg =
-        err.response?.data?.message || "Failed to change password. Please try again.";
+        errObj.response?.data?.message || "Failed to change password. Please try again.";
       setPasswordError(msg);
     } finally {
       setSavingPassword(false);
@@ -128,139 +144,205 @@ export function SettingsPage({
   };
 
   return (
-    <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 0 40px" }}>
-      <h2 style={{ marginBottom: 24 }}>Settings</h2>
-
-      {/* ---- Section 1: Business Profile ---- */}
-      <div
-        className="order-card"
-        style={{ marginBottom: 24 }}
-      >
-        <h3 style={{ marginBottom: 16 }}>Business Profile</h3>
-        <form onSubmit={handleSaveProfile} noValidate>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>
-              Owner Name
-            </label>
-            <input
-              type="text"
-              placeholder="Your name"
-              value={profileName}
-              onChange={(e) => setProfileName(e.target.value)}
-              disabled={savingProfile}
-            />
-          </div>
-
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>
-              Business Name
-            </label>
-            <input
-              type="text"
-              placeholder="Business / shop name"
-              value={profileBusiness}
-              onChange={(e) => setProfileBusiness(e.target.value)}
-              disabled={savingProfile}
-            />
-          </div>
-
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>
-              Phone Number
-            </label>
-            <input
-              type="tel"
-              inputMode="numeric"
-              maxLength={10}
-              placeholder="10-digit Indian mobile number"
-              value={profilePhone}
-              onChange={(e) => setProfilePhone(e.target.value)}
-              disabled={savingProfile}
-            />
-          </div>
-
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>
-              Email
-            </label>
-            <input
-              type="email"
-              value={ownerEmail}
-              readOnly
-              style={{ background: "#f8fafc", color: "#64748b", cursor: "not-allowed" }}
-            />
-            <p style={{ fontSize: 12, color: "#64748b", margin: "-4px 0 8px" }}>
-              Email cannot be changed.
-            </p>
-          </div>
-
-          {profileError && (
-            <div className="api-error-banner">{profileError}</div>
-          )}
-          {profileSuccess && (
-            <div className="success-banner">{profileSuccess}</div>
-          )}
-
-          <button type="submit" disabled={savingProfile} style={{ marginTop: 8 }}>
-            {savingProfile ? "Saving..." : "Save Profile"}
-          </button>
-        </form>
+    <div className="settings-container">
+      {/* Page Header */}
+      <div className="settings-page-header">
+        <div>
+          <h2>Account & Business Settings</h2>
+          <p>Manage your boutique profile information and secure access credentials.</p>
+        </div>
       </div>
 
-      {/* ---- Section 2: Change Password ---- */}
-      <div className="order-card">
-        <h3 style={{ marginBottom: 16 }}>Change Password</h3>
-        <form onSubmit={handleChangePassword} noValidate>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>
-              Current Password
-            </label>
-            <PasswordInput
-              placeholder="Enter current password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              disabled={savingPassword}
-              autoComplete="current-password"
-            />
+      <div className="settings-grid">
+        {/* ---- Section 1: Business Profile ---- */}
+        <section className="settings-card" aria-label="Business Profile Settings">
+          <div className="settings-card-header">
+            <div className="settings-header-title">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              <h3>Business Profile</h3>
+            </div>
+            <span className="settings-section-badge">Boutique Info</span>
           </div>
 
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>
-              New Password
-            </label>
-            <PasswordInput
-              placeholder="At least 8 characters"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              disabled={savingPassword}
-              autoComplete="new-password"
-            />
+          <form onSubmit={handleSaveProfile} noValidate className="settings-form">
+            <div className="settings-form-field">
+              <label htmlFor="settings-owner-name">Owner Name</label>
+              <input
+                id="settings-owner-name"
+                type="text"
+                placeholder="Your full name"
+                value={profileName}
+                onChange={(e) => setProfileName(capitalizeFirstLetter(e.target.value))}
+                onBlur={() => setProfileName((prev) => capitalizeFirstLetter(prev.trim()))}
+                disabled={savingProfile}
+              />
+            </div>
+
+            <div className="settings-form-field">
+              <label htmlFor="settings-business-name">Business / Boutique Name</label>
+              <input
+                id="settings-business-name"
+                type="text"
+                placeholder="Shop or brand name"
+                value={profileBusiness}
+                onChange={(e) => setProfileBusiness(capitalizeFirstLetter(e.target.value))}
+                onBlur={() => setProfileBusiness((prev) => capitalizeFirstLetter(prev.trim()))}
+                disabled={savingProfile}
+              />
+              <span className="settings-field-hint">
+                Shown to your customers on the public tracking portal and order receipts.
+              </span>
+            </div>
+
+            <div className="settings-form-field">
+              <label htmlFor="settings-phone">Contact Phone Number</label>
+              <input
+                id="settings-phone"
+                type="tel"
+                inputMode="numeric"
+                maxLength={10}
+                placeholder="10-digit Indian mobile number"
+                value={profilePhone}
+                onChange={(e) => setProfilePhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                disabled={savingProfile}
+              />
+            </div>
+
+            <div className="settings-form-field">
+              <label htmlFor="settings-email">Email Address</label>
+              <input
+                id="settings-email"
+                type="email"
+                value={ownerEmail}
+                readOnly
+                className="input-readonly"
+              />
+              <span className="settings-field-hint">
+                Email address is used for primary authentication and cannot be changed.
+              </span>
+            </div>
+
+            {profileError && (
+              <div className="api-error-banner" role="alert">
+                {profileError}
+              </div>
+            )}
+            {profileSuccess && (
+              <div className="success-banner" role="status">
+                {profileSuccess}
+              </div>
+            )}
+
+            <div className="settings-form-actions">
+              <button
+                type="submit"
+                disabled={savingProfile}
+                className="orders-btn orders-btn-primary"
+              >
+                {savingProfile ? "Saving Profile..." : "Save Profile"}
+              </button>
+            </div>
+          </form>
+        </section>
+
+        {/* ---- Section 2: Change Password ---- */}
+        <section className="settings-card" aria-label="Security and Password Settings">
+          <div className="settings-card-header">
+            <div className="settings-header-title">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <h3>Security & Password</h3>
+            </div>
+            <span className="settings-section-badge">Authentication</span>
           </div>
 
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>
-              Confirm New Password
-            </label>
-            <PasswordInput
-              placeholder="Repeat new password"
-              value={confirmNewPassword}
-              onChange={(e) => setConfirmNewPassword(e.target.value)}
-              disabled={savingPassword}
-              autoComplete="new-password"
-            />
-          </div>
+          <form onSubmit={handleChangePassword} noValidate className="settings-form">
+            <div className="settings-form-field">
+              <label htmlFor="settings-current-password">Current Password</label>
+              <PasswordInput
+                id="settings-current-password"
+                placeholder="Enter your current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                disabled={savingPassword}
+                autoComplete="current-password"
+              />
+            </div>
 
-          {passwordError && (
-            <div className="api-error-banner">{passwordError}</div>
-          )}
-          {passwordSuccess && (
-            <div className="success-banner">{passwordSuccess}</div>
-          )}
+            <div className="settings-form-field">
+              <label htmlFor="settings-new-password">New Password</label>
+              <PasswordInput
+                id="settings-new-password"
+                placeholder="At least 8 characters"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                disabled={savingPassword}
+                autoComplete="new-password"
+              />
+              <span className="settings-field-hint">
+                Must be at least 8 characters long.
+              </span>
+            </div>
 
-          <button type="submit" disabled={savingPassword} style={{ marginTop: 8 }}>
-            {savingPassword ? "Saving..." : "Change Password"}
-          </button>
-        </form>
+            <div className="settings-form-field">
+              <label htmlFor="settings-confirm-password">Confirm New Password</label>
+              <PasswordInput
+                id="settings-confirm-password"
+                placeholder="Repeat new password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                disabled={savingPassword}
+                autoComplete="new-password"
+              />
+            </div>
+
+            {passwordError && (
+              <div className="api-error-banner" role="alert">
+                {passwordError}
+              </div>
+            )}
+            {passwordSuccess && (
+              <div className="success-banner" role="status">
+                {passwordSuccess}
+              </div>
+            )}
+
+            <div className="settings-form-actions">
+              <button
+                type="submit"
+                disabled={savingPassword}
+                className="orders-btn orders-btn-primary"
+              >
+                {savingPassword ? "Updating Password..." : "Change Password"}
+              </button>
+            </div>
+          </form>
+        </section>
       </div>
     </div>
   );

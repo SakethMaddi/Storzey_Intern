@@ -106,14 +106,13 @@ export function RecentOrdersSection({
                   <td style={{ padding: "12px", textAlign: "right" }}>
                     <button
                       type="button"
-                      onClick={() => onViewOrderDetails(o.id)}
-                      style={{
-                        padding: "4px 10px",
-                        fontSize: "12px",
-                        background: "#f1f5f9",
-                        color: "#2563eb",
-                        border: "1px solid #cbd5e1",
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onViewOrderDetails(o.id);
                       }}
+                      className="recent-order-view-btn"
+                      aria-label={`View order details for Order #${o.id}`}
                     >
                       View
                     </button>
@@ -171,16 +170,14 @@ export function RecentOrdersSection({
             {onViewOrderDetails && (
               <button
                 type="button"
-                onClick={() => onViewOrderDetails(o.id)}
-                style={{
-                  width: "100%",
-                  marginTop: "8px",
-                  padding: "6px",
-                  fontSize: "12px",
-                  background: "#f1f5f9",
-                  color: "#2563eb",
-                  border: "1px solid #cbd5e1",
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onViewOrderDetails(o.id);
                 }}
+                className="recent-order-view-btn"
+                style={{ width: "100%", marginTop: "8px" }}
+                aria-label={`View order details for Order #${o.id}`}
               >
                 View Order Details
               </button>

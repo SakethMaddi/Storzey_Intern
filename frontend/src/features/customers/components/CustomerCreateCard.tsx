@@ -1,4 +1,5 @@
 import React from "react";
+import { capitalizeFirstLetter } from "../../../validation";
 
 export interface CustomerCreateCardProps {
   name: string;
@@ -52,10 +53,11 @@ export function CustomerCreateCard({
           <label className="customers-field">
             <span>Customer name</span>
             <input
-              placeholder="Full name"
+              placeholder="Full name (e.g. Priya Sharma)"
               value={name}
+              maxLength={100}
               className={errors.name ? "input-error" : ""}
-              onChange={(e) => onNameChange(e.target.value)}
+              onChange={(e) => onNameChange(capitalizeFirstLetter(e.target.value))}
               disabled={isSubmitting}
               aria-invalid={errors.name ? true : undefined}
               required
@@ -78,6 +80,11 @@ export function CustomerCreateCard({
               value={phone}
               className={errors.phone ? "input-error" : ""}
               onChange={(e) => onPhoneChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (["e", "E", "+", "-", "."].includes(e.key)) {
+                  e.preventDefault();
+                }
+              }}
               onPaste={onPhonePaste}
               disabled={isSubmitting}
               aria-invalid={errors.phone ? true : undefined}

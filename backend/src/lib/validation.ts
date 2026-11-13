@@ -1,6 +1,33 @@
 import { z } from "zod";
 
 /**
+ * Capitalizes ONLY the first alphabetic/letter character in the string,
+ * preserving leading spaces and the casing of all subsequent words.
+ * Examples:
+ *   "anusha" -> "Anusha"
+ *   "lehanga" -> "Lehanga"
+ *   "my boutique" -> "My boutique"
+ *   "12 main road" -> "12 main road"
+ */
+export function capitalizeFirstLetter(val: string): string {
+  if (!val) return val;
+  return val.replace(/^(\s*)([\p{L}])/u, (_, space, char) => space + char.toUpperCase());
+}
+
+/**
+ * Validates a human name:
+ * Accepts alphabets (including Indic scripts like Telugu, Hindi), spaces, hyphens,
+ * apostrophes, and dots (for initials). Rejects digits, symbols, and empty/space-only strings.
+ */
+export function isValidHumanName(val: string): boolean {
+  if (!val || typeof val !== "string") return false;
+  const trimmed = val.trim();
+  if (trimmed.length < 1 || trimmed.length > 100) return false;
+  if (!/\p{L}/u.test(trimmed)) return false;
+  return /^[\p{L}\p{M}\s'.-]+$/u.test(trimmed);
+}
+
+/**
  * Strict Indian phone number validation:
  * Exactly 10 digits — no more and no less.
  * Must start with 6, 7, 8, or 9.
@@ -85,12 +112,15 @@ export const customerSchema = z.object({
     .string({
       error: "Customer name is required",
     })
-    .transform((val) => val.trim())
+    .transform((val) => capitalizeFirstLetter(val.trim()))
     .refine((val) => val.length > 0, {
       message: "Customer name is required and cannot be empty",
     })
     .refine((val) => val.length <= 100, {
       message: "Customer name cannot exceed 100 characters",
+    })
+    .refine((val) => isValidHumanName(val), {
+      message: "Customer name can only contain letters, spaces, hyphens, apostrophes, and dots",
     }),
   phone: z
     .string({
@@ -122,12 +152,15 @@ export const customerUpdateSchema = z.object({
     .string({
       error: "Customer name is required",
     })
-    .transform((val) => val.trim())
+    .transform((val) => capitalizeFirstLetter(val.trim()))
     .refine((val) => val.length > 0, {
       message: "Customer name is required and cannot be empty",
     })
     .refine((val) => val.length <= 100, {
       message: "Customer name cannot exceed 100 characters",
+    })
+    .refine((val) => isValidHumanName(val), {
+      message: "Customer name can only contain letters, spaces, hyphens, apostrophes, and dots",
     }),
   phone: z
     .string({
@@ -158,7 +191,7 @@ export const orderStageInputSchema = z
   .string({
     error: "Stage name is required",
   })
-  .transform((val) => val.trim())
+  .transform((val) => capitalizeFirstLetter(val.trim()))
   .refine((val) => val.length > 0, {
     message: "Stage name cannot be empty",
   })
@@ -172,7 +205,7 @@ export const orderCreateSchema = z
       .string({
         error: "Item name is required",
       })
-      .transform((val) => val.trim())
+      .transform((val) => capitalizeFirstLetter(val.trim()))
       .refine((val) => val.length > 0, {
         message: "Item name is required and cannot be empty",
       })
@@ -221,6 +254,15 @@ export const orderCreateSchema = z
         {
           message: "Promised delivery date must be a valid date in YYYY-MM-DD format",
         }
+      )
+      .refine(
+        (val) => {
+          const todayStr = new Date().toISOString().slice(0, 10);
+          return val >= todayStr;
+        },
+        {
+          message: "Promised delivery date cannot be in the past",
+        }
       ),
     stages: z
       .array(orderStageInputSchema)
@@ -252,7 +294,7 @@ export const orderStageCreateSchema = z.object({
     .string({
       error: "Stage name is required",
     })
-    .transform((val) => val.trim())
+    .transform((val) => capitalizeFirstLetter(val.trim()))
     .refine((val) => val.length > 0, {
       message: "Stage name is required and cannot be empty",
     })
@@ -371,12 +413,15 @@ export const ownerRegisterSchema = z.object({
     .string({
       error: "Owner name is required",
     })
-    .transform((val) => val.trim())
+    .transform((val) => capitalizeFirstLetter(val.trim()))
     .refine((val) => val.length > 0, {
       message: "Owner name is required and cannot be empty",
     })
     .refine((val) => val.length <= 100, {
       message: "Owner name cannot exceed 100 characters",
+    })
+    .refine((val) => isValidHumanName(val), {
+      message: "Owner name can only contain letters, spaces, hyphens, apostrophes, and dots",
     }),
   email: z
     .string({
@@ -412,7 +457,7 @@ export const ownerRegisterSchema = z.object({
     .or(z.literal(""))
     .transform((val) => {
       if (!val) return null;
-      const trimmed = val.trim();
+      const trimmed = capitalizeFirstLetter(val.trim());
       return trimmed.length > 0 ? trimmed : null;
     }),
   password: passwordSchema,
@@ -446,17 +491,23 @@ export const profileUpdateSchema = z
       .trim()
       .min(1, "Name must be at least 1 character")
       .max(100, "Name cannot exceed 100 characters")
+      .transform(capitalizeFirstLetter)
+      .refine((val) => isValidHumanName(val), {
+        message: "Name can only contain letters, spaces, hyphens, apostrophes, and dots",
+      })
       .optional(),
     phone: z
       .string()
       .trim()
       .superRefine((val, ctx) => {
-        const result = validateStrictIndianPhone(val);
-        if (!result.isValid) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: result.message || "Invalid Indian mobile number",
-          });
+        if (val.length > 0) {
+          const result = validateStrictIndianPhone(val);
+          if (!result.isValid) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: result.message || "Invalid Indian mobile number",
+            });
+          }
         }
       })
       .optional(),
@@ -466,7 +517,7 @@ export const profileUpdateSchema = z
       .max(150, "Business name cannot exceed 150 characters")
       .optional()
       .nullable()
-      .transform((val) => (val === undefined ? undefined : val && val.length > 0 ? val : null)),
+      .transform((val) => (val === undefined ? undefined : val && val.length > 0 ? capitalizeFirstLetter(val.trim()) : null)),
   })
   .refine(
     (data) =>
@@ -506,9 +557,13 @@ export const orderCancelSchema = z.object({
     .string({
       error: "Cancellation reason is required",
     })
-    .trim()
-    .min(1, "Cancellation reason is required and cannot be empty")
-    .max(500, "Cancellation reason cannot exceed 500 characters"),
+    .transform((val) => capitalizeFirstLetter(val.trim()))
+    .refine((val) => val.length > 0, {
+      message: "Cancellation reason is required and cannot be empty",
+    })
+    .refine((val) => val.length <= 500, {
+      message: "Cancellation reason cannot exceed 500 characters",
+    }),
 });
 
 export type OrderCancelInput = z.infer<typeof orderCancelSchema>;

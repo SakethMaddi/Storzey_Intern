@@ -30,6 +30,13 @@ body {
   text-align: left;
 }
 
+#root:has(.customer-portal-root),
+#root:has(.login-container) {
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+}
+
 h1 {
   color: #1e3a8a;
   font-size: 32px;
@@ -67,7 +74,7 @@ button {
 
 @media (max-width: 600px) {
   #root {
-    padding: 16px;
+    padding: 12px 10px;
   }
 
   h1 {
@@ -76,5 +83,11 @@ button {
 
   h2 {
     font-size: 20px;
+  }
+}
+
+@media (max-width: 360px) {
+  #root {
+    padding: 8px 6px;
   }
 }

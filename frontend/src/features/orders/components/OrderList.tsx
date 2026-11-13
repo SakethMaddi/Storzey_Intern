@@ -124,6 +124,11 @@ export function OrderList({
 
     return orders
       .filter((order) => {
+        // If this order is the actively selected order, always include it so its row & details are visible
+        if (selectedOrderId && order.id === selectedOrderId) {
+          return true;
+        }
+
         // 1. Search matcher (ID, customer name, customer phone, item name)
         const orderIdStr = order.id.toString();
         const matchesSearch =
@@ -217,7 +222,7 @@ export function OrderList({
         }
         return 0;
       });
-  }, [orders, stages, searchTerm, statusFilter, productionFilter, dateFilter, sortBy]);
+  }, [orders, stages, searchTerm, statusFilter, productionFilter, dateFilter, sortBy, selectedOrderId]);
 
   const hasActiveFilters =
     Boolean(searchTerm) ||
@@ -591,6 +596,7 @@ export function OrderList({
                   return (
                     <tr
                       key={order.id}
+                      id={`order-row-${order.id}`}
                       className={`orders-tr ${isSelected ? "is-selected-row" : ""}`}
                     >
                       {/* Order ID */}
@@ -697,7 +703,7 @@ export function OrderList({
           {/* ── EXPANDED ORDER DETAILS PANEL (Visible on Desktop when an order is selected) ── */}
           {selectedOrderId && (
             <div className="desktop-expanded-details-container">
-              {filteredOrders
+              {orders
                 .filter((o) => o.id === selectedOrderId)
                 .map((order) => (
                   <OrderCard
@@ -734,7 +740,10 @@ export function OrderList({
 
           {/* ── MOBILE RESPONSIVE CARDS VIEW (<768px) ── */}
           <div className="mobile-cards-container">
-            {filteredOrders.map((order) => (
+            {(selectedOrderId && !filteredOrders.some((o) => o.id === selectedOrderId)
+              ? [...orders.filter((o) => o.id === selectedOrderId), ...filteredOrders]
+              : filteredOrders
+            ).map((order) => (
               <OrderCard
                 key={order.id}
                 order={order}

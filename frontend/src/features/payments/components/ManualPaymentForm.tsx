@@ -78,13 +78,20 @@ export function ManualPaymentForm({
           <input
             id="cash-amount-input"
             type="number"
+            inputMode="numeric"
             min="1"
             max={balance}
+            step="1"
             placeholder="Enter cash amount in ₹"
             value={amount}
             className={error ? "input-error" : ""}
             disabled={submitting}
-            onChange={(e) => onAmountChange(e.target.value)}
+            onChange={(e) => onAmountChange(e.target.value.replace(/\D/g, ""))}
+            onKeyDown={(e) => {
+              if (["e", "E", "+", "-", "."].includes(e.key)) {
+                e.preventDefault();
+              }
+            }}
             style={{ margin: 0 }}
           />
         </div>

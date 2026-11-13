@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Order, Payment, OrderStage } from "../../../types";
 import { ManualPaymentForm } from "../../payments/components/ManualPaymentForm";
+import { capitalizeFirstLetter } from "../../../validation";
 import {
   inr,
   formatOrderDate,
@@ -68,11 +69,20 @@ export function OrderCard({
   const prodStatus = getOrderProductionStatus(order, orderStages);
 
   const handleSubmitCancel = () => {
-    if (!cancelReason.trim()) {
+    const trimmed = capitalizeFirstLetter(cancelReason.trim());
+    if (!trimmed) {
       setCancelError("Please enter a cancellation reason (required).");
       return;
     }
-    onCancelOrder(order.id, cancelReason.trim());
+    if (trimmed.length < 3) {
+      setCancelError("Cancellation reason must be at least 3 characters.");
+      return;
+    }
+    if (trimmed.length > 500) {
+      setCancelError("Cancellation reason cannot exceed 500 characters.");
+      return;
+    }
+    onCancelOrder(order.id, trimmed);
     setShowCancelForm(false);
     setCancelReason("");
     setCancelError("");
@@ -87,6 +97,7 @@ export function OrderCard({
 
   return (
     <article
+      id={`order-card-${order.id}`}
       className={`order-card orders-item-card ${isSelected ? "is-expanded" : ""}`}
       aria-label={`Order ${order.id}: ${order.itemName}`}
     >
@@ -252,8 +263,9 @@ export function OrderCard({
           <textarea
             placeholder="Enter reason for cancelling this order (e.g., Customer requested change, duplicate order)..."
             value={cancelReason}
+            maxLength={500}
             onChange={(e) => {
-              setCancelReason(e.target.value);
+              setCancelReason(capitalizeFirstLetter(e.target.value));
               if (cancelError) setCancelError("");
             }}
             rows={3}
@@ -635,23 +647,26 @@ export function OrderCard({
                   value={`${window.location.origin}/track/${order.publicToken}`}
                   readOnly
                   className="tracking-url-input"
+                  aria-label="Customer public tracking link"
                 />
-                <button
-                  type="button"
-                  onClick={handleCopyTrackingLink}
-                  className="orders-btn orders-btn-primary"
-                >
-                  {copiedLink ? "✓ Copied!" : "Copy Link"}
-                </button>
-                <a
-                  href={`/track/${order.publicToken}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="orders-btn orders-btn-ghost"
-                  style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}
-                >
-                  Open Page ↗
-                </a>
+                <div className="tracking-btn-group">
+                  <button
+                    type="button"
+                    onClick={handleCopyTrackingLink}
+                    className="orders-btn orders-btn-primary tracking-copy-btn"
+                  >
+                    {copiedLink ? "✓ Copied!" : "Copy Link"}
+                  </button>
+                  <a
+                    href={`/track/${order.publicToken}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="orders-btn orders-btn-ghost tracking-open-btn"
+                    style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+                  >
+                    Open Page ↗
+                  </a>
+                </div>
               </div>
             </div>
           </section>

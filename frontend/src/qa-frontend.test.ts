@@ -8,6 +8,9 @@ import {
   passwordSchema,
   ownerLoginSchema,
   ownerRegisterSchema,
+  capitalizeFirstLetter,
+  isValidHumanName,
+  orderCancelSchema,
 } from "./validation.ts";
 
 describe("Frontend Phone Validation", () => {
@@ -252,6 +255,100 @@ describe("Frontend Password & Auth Schemas (UTF-8 Byte Length)", () => {
       }).success,
       false
     );
+  });
+});
+
+describe("Text Field Auto-Capitalization & Name Validation", () => {
+  it("capitalizes the first letter of human text while preserving subsequent words", () => {
+    assert.strictEqual(capitalizeFirstLetter("anusha"), "Anusha");
+    assert.strictEqual(capitalizeFirstLetter("lehanga"), "Lehanga");
+    assert.strictEqual(capitalizeFirstLetter("my boutique"), "My boutique");
+    assert.strictEqual(capitalizeFirstLetter("12 main road"), "12 main road");
+    assert.strictEqual(capitalizeFirstLetter("  anusha"), "  Anusha");
+    assert.strictEqual(capitalizeFirstLetter("Anusha"), "Anusha");
+    assert.strictEqual(capitalizeFirstLetter(""), "");
+  });
+
+  it("preserves multibyte Indic script names", () => {
+    assert.strictEqual(capitalizeFirstLetter("ప్రియా శర్మ"), "ప్రియా శర్మ");
+    assert.strictEqual(capitalizeFirstLetter("अमित शर्मा"), "अमित शर्मा");
+  });
+
+  it("validates human names correctly rejecting digits and symbols", () => {
+    assert.strictEqual(isValidHumanName("Anusha Rao"), true);
+    assert.strictEqual(isValidHumanName("K. V. Raman"), true);
+    assert.strictEqual(isValidHumanName("Mary-Jane"), true);
+    assert.strictEqual(isValidHumanName("O'Connor"), true);
+    assert.strictEqual(isValidHumanName("ప్రియా శర్మ"), true);
+    assert.strictEqual(isValidHumanName("अमित शर्मा"), true);
+
+    // Rejections
+    assert.strictEqual(isValidHumanName("Anusha123"), false);
+    assert.strictEqual(isValidHumanName("Anusha@#$"), false);
+    assert.strictEqual(isValidHumanName("   "), false);
+    assert.strictEqual(isValidHumanName("---"), false);
+  });
+});
+
+describe("Strict Numeric & Monetary Field Validation", () => {
+  it("rejects scientific notation (5e3) in order total and advance", () => {
+    const res = orderFormSchema.safeParse({
+      customerId: "1",
+      itemName: "Silk Saree",
+      totalAmount: "5e3",
+      advance: "0",
+      promisedDate: "2026-12-15",
+    });
+    assert.strictEqual(res.success, false);
+  });
+
+  it("rejects decimal numbers in total amount and advance", () => {
+    const res = orderFormSchema.safeParse({
+      customerId: "1",
+      itemName: "Silk Saree",
+      totalAmount: "1500.50",
+      advance: "0",
+      promisedDate: "2026-12-15",
+    });
+    assert.strictEqual(res.success, false);
+  });
+
+  it("rejects currency symbols in total amount and advance", () => {
+    const res = orderFormSchema.safeParse({
+      customerId: "1",
+      itemName: "Silk Saree",
+      totalAmount: "₹5000",
+      advance: "0",
+      promisedDate: "2026-12-15",
+    });
+    assert.strictEqual(res.success, false);
+  });
+
+  it("rejects past delivery dates in order creation", () => {
+    const res = orderFormSchema.safeParse({
+      customerId: "1",
+      itemName: "Silk Saree",
+      totalAmount: "5000",
+      advance: "1000",
+      promisedDate: "2020-01-01",
+    });
+    assert.strictEqual(res.success, false);
+  });
+});
+
+describe("Order Cancellation Reason Validation", () => {
+  it("accepts valid cancellation reason and capitalizes first letter", () => {
+    const res = orderCancelSchema.safeParse({ reason: "customer requested change" });
+    assert.strictEqual(res.success, true);
+    if (res.success) {
+      assert.strictEqual(res.data.reason, "Customer requested change");
+    }
+  });
+
+  it("rejects empty cancellation reason or reasons shorter than 3 characters", () => {
+    assert.strictEqual(orderCancelSchema.safeParse({ reason: "" }).success, false);
+    assert.strictEqual(orderCancelSchema.safeParse({ reason: "  " }).success, false);
+    assert.strictEqual(orderCancelSchema.safeParse({ reason: "no" }).success, false);
   });
 });
 
