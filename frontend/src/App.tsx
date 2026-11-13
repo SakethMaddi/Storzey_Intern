@@ -40,6 +40,7 @@ function AdminApp({
 }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [orderCustomers, setOrderCustomers] = useState<Customer[]>([]);
   const [customerPagination, setCustomerPagination] = useState<PaginationMeta | null>(null);
   const [orderPagination, setOrderPagination] = useState<PaginationMeta | null>(null);
   const [customerPage, setCustomerPage] = useState(1);
@@ -202,6 +203,12 @@ function AdminApp({
   const [editCustomerApiError, setEditCustomerApiError] = useState("");
   const [isSubmittingCustomerEdit, setIsSubmittingCustomerEdit] = useState(false);
   const customerEditSubmittingRef = useRef(false);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const customerSearchRef = useRef("");
+  const customerSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [customerLoading, setCustomerLoading] = useState(true);
+  const [customerLoadError, setCustomerLoadError] = useState("");
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
 
   // Custom Stages State for Order Creation
   const defaultStageTemplates = [
@@ -241,27 +248,68 @@ function AdminApp({
       const response = await axios.get(
         `${API_BASE}/orders?page=${page}&limit=50&archived=${archived}`
       );
+      const fetchedOrders: Order[] = response.data.data;
       startTransition(() => {
-        setOrders(response.data.data);
+        setOrders(fetchedOrders);
         if (response.data.pagination) {
           setOrderPagination(response.data.pagination);
           setOrderPage(response.data.pagination.page);
         }
       });
+      // Prefetch stages in background for orders to power production badges and statistics
+      if (Array.isArray(fetchedOrders)) {
+        fetchedOrders.forEach((o) => {
+          if (!stages[o.id]) {
+            axios
+              .get(`${API_BASE}/orders/${o.id}/stages`)
+              .then((res) => {
+                if (res.data?.success && res.data.data) {
+                  setStages((prev) => ({
+                    ...prev,
+                    [o.id]: res.data.data,
+                  }));
+                }
+              })
+              .catch(() => {});
+          }
+        });
+      }
     } catch (error: any) {
       console.error("Failed to fetch orders:", error);
       handleAuthError(error);
     }
   };
 
-  const fetchCustomers = async (
-    page: number = customerPage,
-    archived: boolean = showArchivedCustomers
-  ) => {
+  const fetchOrderCustomers = async () => {
     try {
       const response = await axios.get(
-        `${API_BASE}/customers?page=${page}&limit=50&archived=${archived}`
+        `${API_BASE}/customers?page=1&limit=50&archived=false`
       );
+      setOrderCustomers(response.data.data ?? []);
+    } catch (error: any) {
+      console.error("Failed to fetch customers for orders:", error);
+      handleAuthError(error);
+    }
+  };
+
+  const fetchCustomers = async (
+    page: number = customerPage,
+    archived: boolean = showArchivedCustomers,
+    search: string = customerSearchRef.current
+  ) => {
+    setCustomerLoading(true);
+    setCustomerLoadError("");
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: "50",
+        archived: String(archived),
+      });
+      const query = search.trim();
+      if (query) {
+        params.set("search", query);
+      }
+      const response = await axios.get(`${API_BASE}/customers?${params.toString()}`);
       startTransition(() => {
         setCustomers(response.data.data);
         if (response.data.pagination) {
@@ -272,11 +320,30 @@ function AdminApp({
     } catch (error: any) {
       console.error("Failed to fetch customers:", error);
       handleAuthError(error);
+      if (error?.response?.status !== 401) {
+        setCustomerLoadError("Couldn't load customers. Please try again.");
+      }
+    } finally {
+      setCustomerLoading(false);
     }
+  };
+
+  const handleCustomerSearchChange = (value: string) => {
+    setCustomerSearch(value);
+    customerSearchRef.current = value;
+    if (customerSearchTimer.current) {
+      clearTimeout(customerSearchTimer.current);
+    }
+    customerSearchTimer.current = setTimeout(() => {
+      fetchCustomers(1, showArchivedCustomers, value);
+    }, 300);
   };
 
   const handleToggleArchivedCustomers = () => {
     const nextVal = !showArchivedCustomers;
+    if (customerSearchTimer.current) {
+      clearTimeout(customerSearchTimer.current);
+    }
     setShowArchivedCustomers(nextVal);
     fetchCustomers(1, nextVal);
   };
@@ -284,7 +351,11 @@ function AdminApp({
   const handleArchiveCustomer = async (customerId: number) => {
     try {
       await axios.patch(`${API_BASE}/customers/${customerId}/archive`, {});
-      await fetchCustomers(customerPage, showArchivedCustomers);
+      await Promise.all([
+        fetchCustomers(customerPage, showArchivedCustomers),
+        fetchOrderCustomers(),
+      ]);
+      setCustomerId((current) => (current === String(customerId) ? "" : current));
       fetchDashboardStats().catch(() => {});
     } catch (error: any) {
       console.error("Failed to archive customer:", error);
@@ -296,7 +367,10 @@ function AdminApp({
   const handleRestoreCustomer = async (customerId: number) => {
     try {
       await axios.patch(`${API_BASE}/customers/${customerId}/restore`, {});
-      await fetchCustomers(customerPage, showArchivedCustomers);
+      await Promise.all([
+        fetchCustomers(customerPage, showArchivedCustomers),
+        fetchOrderCustomers(),
+      ]);
       fetchDashboardStats().catch(() => {});
     } catch (error: any) {
       console.error("Failed to restore customer:", error);
@@ -308,7 +382,11 @@ function AdminApp({
   const handleDeleteCustomer = async (customerId: number) => {
     try {
       await axios.delete(`${API_BASE}/customers/${customerId}`);
-      await fetchCustomers(customerPage, showArchivedCustomers);
+      await Promise.all([
+        fetchCustomers(customerPage, showArchivedCustomers),
+        fetchOrderCustomers(),
+      ]);
+      setCustomerId((current) => (current === String(customerId) ? "" : current));
       fetchDashboardStats().catch(() => {});
     } catch (error: any) {
       console.error("Failed to delete customer:", error);
@@ -548,11 +626,36 @@ function AdminApp({
     }
   };
 
+  const openCustomerOrder = (customer: Customer, orderId?: number) => {
+    setPaymentStatusFilter("ALL");
+    setOrderSearchTerm(customer.phone);
+    if (orderId != null && selectedOrder !== orderId) {
+      void toggleOrderDetails(orderId);
+    }
+    document.getElementById("orders-in-progress")?.scrollIntoView({ behavior: "smooth" });
+  };
+
   useEffect(() => {
-    Promise.all([fetchOrders(), fetchCustomers(), fetchDashboardStats()]).finally(() => {
+    Promise.all([
+      fetchOrders(),
+      fetchCustomers(),
+      fetchOrderCustomers(),
+      fetchDashboardStats(),
+    ]).finally(() => {
       setLoadingInitial(false);
     });
+    return () => {
+      if (customerSearchTimer.current) {
+        clearTimeout(customerSearchTimer.current);
+      }
+    };
   }, []);
+
+  useEffect(() => {
+    if (customerSuccess || customerApiError) {
+      setShowCustomerForm(true);
+    }
+  }, [customerSuccess, customerApiError]);
 
   const handlePhoneChange = (val: string) => {
     setPhone(val);
@@ -609,7 +712,9 @@ function AdminApp({
 
     const validData = validationResult.data;
 
-    const existing = customers.find((c) => c.phone === validData.phone);
+    const existing = [...orderCustomers, ...customers].find(
+      (c) => c.phone === validData.phone
+    );
     if (existing) {
       setCustomerErrors({
         phone: `Customer with phone ${validData.phone} already exists (${existing.name}).`,
@@ -637,7 +742,16 @@ function AdminApp({
       setEmail("");
 
       if (newCustomer) {
-        setCustomers((prev) => [newCustomer, ...prev]);
+        const query = customerSearchRef.current.trim().toLowerCase();
+        const matchesVisibleList =
+          !showArchivedCustomers &&
+          (!query ||
+            String(newCustomer.name || "").toLowerCase().includes(query) ||
+            String(newCustomer.phone || "").includes(query));
+        if (matchesVisibleList) {
+          setCustomers((prev) => [newCustomer, ...prev.filter((c) => c.id !== newCustomer.id)]);
+        }
+        setOrderCustomers((prev) => [newCustomer, ...prev.filter((c) => c.id !== newCustomer.id)]);
       }
       fetchDashboardStats().catch(() => {});
     } catch (error: any) {
@@ -723,7 +837,7 @@ function AdminApp({
     const validData = validationResult.data;
 
     // Check duplicate phone among existing customers excluding current customer
-    const duplicate = customers.find(
+    const duplicate = [...orderCustomers, ...customers].find(
       (c) => c.phone === validData.phone && c.id !== editingCustomer.id
     );
     if (duplicate) {
@@ -750,6 +864,9 @@ function AdminApp({
 
       setEditCustomerSuccess("Customer updated successfully!");
       setCustomers((prev) =>
+        prev.map((c) => (c.id === updatedCustomer.id ? updatedCustomer : c))
+      );
+      setOrderCustomers((prev) =>
         prev.map((c) => (c.id === updatedCustomer.id ? updatedCustomer : c))
       );
 
@@ -1085,40 +1202,73 @@ function AdminApp({
           />
 
           {/* 5. Customer Management */}
-          <section id="customer-management" aria-label="Customer Management" style={{ marginTop: "36px" }}>
-            <div style={{ marginBottom: "12px" }}>
-              <h2 style={{ margin: "0 0 4px", fontSize: "20px", color: "#1e3a8a" }}>
-                Customer Management
-              </h2>
-              <span style={{ fontSize: "13px", color: "#64748b" }}>
-                Add new boutique clients and maintain contact records
-              </span>
+          <section id="customer-management" className="customers-page" aria-label="Customer Management">
+            <div className="customers-header">
+              <div>
+                <h2>Customers</h2>
+                <p>Add clients and keep their contact details up to date.</p>
+              </div>
+              <button
+                type="button"
+                className="customers-btn customers-btn-primary"
+                onClick={() => {
+                  setShowCustomerForm(true);
+                  window.requestAnimationFrame(() => {
+                    document.getElementById("add-customer")?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "nearest",
+                    });
+                  });
+                }}
+              >
+                Add customer
+              </button>
             </div>
 
-            <CustomerCreateCard
-              name={name}
-              phone={phone}
-              email={email}
-              errors={customerErrors}
-              apiError={customerApiError}
-              successMessage={customerSuccess}
-              isSubmitting={isSubmittingCustomer}
-              onNameChange={(val) => {
-                setName(val);
-                if (customerErrors.name) {
-                  setCustomerErrors((prev) => ({ ...prev, name: undefined }));
-                }
-              }}
-              onPhoneChange={handlePhoneChange}
-              onEmailChange={(val) => {
-                setEmail(val);
-                if (customerErrors.email) {
-                  setCustomerErrors((prev) => ({ ...prev, email: undefined }));
-                }
-              }}
-              onPhonePaste={handlePhonePaste}
-              onSubmit={createCustomer}
-            />
+            <div className="customers-stats">
+              <div>
+                <span>Active customers</span>
+                <strong>{totalCustomersCount}</strong>
+              </div>
+              <div>
+                <span>
+                  {customerSearch.trim()
+                    ? "Search results"
+                    : showArchivedCustomers
+                      ? "Archived customers"
+                      : "Listed customers"}
+                </span>
+                <strong>{customerPagination ? customerPagination.total : customers.length}</strong>
+              </div>
+            </div>
+
+            {showCustomerForm && (
+              <CustomerCreateCard
+                name={name}
+                phone={phone}
+                email={email}
+                errors={customerErrors}
+                apiError={customerApiError}
+                successMessage={customerSuccess}
+                isSubmitting={isSubmittingCustomer}
+                onNameChange={(val) => {
+                  setName(val);
+                  if (customerErrors.name) {
+                    setCustomerErrors((prev) => ({ ...prev, name: undefined }));
+                  }
+                }}
+                onPhoneChange={handlePhoneChange}
+                onEmailChange={(val) => {
+                  setEmail(val);
+                  if (customerErrors.email) {
+                    setCustomerErrors((prev) => ({ ...prev, email: undefined }));
+                  }
+                }}
+                onPhonePaste={handlePhonePaste}
+                onSubmit={createCustomer}
+                onClose={() => setShowCustomerForm(false)}
+              />
+            )}
 
             <CustomerList
               customers={customers}
@@ -1158,22 +1308,28 @@ function AdminApp({
               onDeleteCustomer={handleDeleteCustomer}
               showArchived={showArchivedCustomers}
               onToggleArchived={handleToggleArchivedCustomers}
+              searchTerm={customerSearch}
+              onSearchChange={handleCustomerSearchChange}
+              loading={customerLoading}
+              loadError={customerLoadError}
+              onRetry={() => fetchCustomers(customerPage, showArchivedCustomers)}
+              orders={orders}
+              payments={payments}
+              onOpenOrder={openCustomerOrder}
             />
           </section>
 
           {/* 6. Create Order */}
-          <section id="create-order" aria-label="Create Order" style={{ marginTop: "36px" }}>
-            <div style={{ marginBottom: "12px" }}>
-              <h2 style={{ margin: "0 0 4px", fontSize: "20px", color: "#1e3a8a" }}>
-                Create Order
-              </h2>
-              <span style={{ fontSize: "13px", color: "#64748b" }}>
-                Record new custom clothing, advance deposits, and tailor stages
-              </span>
+          <section id="create-order" className="orders-page" aria-label="Create Order" style={{ marginTop: "36px" }}>
+            <div className="orders-header">
+              <div>
+                <h2>Create Order</h2>
+                <p>Record new bespoke clothing, advance deposits, and tailor production milestones.</p>
+              </div>
             </div>
 
             <OrderCreateForm
-              customers={customers}
+              customers={orderCustomers}
               customerId={customerId}
               itemName={itemName}
               totalAmount={totalAmount}
@@ -1246,16 +1402,8 @@ function AdminApp({
 // ----------------------------------------------------
 // ROOT APP COMPONENT (Router & Session Check)
 // ----------------------------------------------------
-function App() {
-  const path = window.location.pathname;
-  const match = path.match(/^\/track\/([^/]+)$/);
-
-  // 1. Customer tracking page is always public
-  if (match) {
-    return <CustomerOrderPage token={match[1]} />;
-  }
-
-  // 2. Owner Auth Session state
+function OwnerPortal() {
+  // Owner Auth Session state
   const [sessionChecked, setSessionChecked] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [ownerEmail, setOwnerEmail] = useState("");
@@ -1332,6 +1480,18 @@ function App() {
   }
 
   return <AdminApp ownerEmail={ownerEmail} onLogout={handleLogout} />;
+}
+
+function App() {
+  const path = window.location.pathname;
+  const match = path.match(/^\/track\/([^/]+)$/);
+
+  // 1. Customer tracking page is always public
+  if (match) {
+    return <CustomerOrderPage token={match[1]} />;
+  }
+
+  return <OwnerPortal />;
 }
 
 export default App;

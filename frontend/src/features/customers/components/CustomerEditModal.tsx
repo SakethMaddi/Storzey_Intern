@@ -33,133 +33,103 @@ export function CustomerEditModal({
   onCancel,
 }: CustomerEditModalProps) {
   return (
-    <div
-      style={{
-        background: "#ffffff",
-        border: "2px solid #3b82f6",
-        borderRadius: "10px",
-        padding: "18px 20px",
-        marginBottom: "20px",
-        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "12px",
-        }}
-      >
-        <h3 style={{ margin: 0, color: "#1e3a8a", fontSize: "17px" }}>
-          Edit Customer (ID: {customer.id})
-        </h3>
+    <div className="customers-edit">
+      <div className="customers-panel-head">
+        <h3>Edit {customer.name}</h3>
         <button
           type="button"
+          className="customers-btn customers-btn-ghost"
           onClick={onCancel}
-          style={{
-            background: "#94a3b8",
-            padding: "4px 10px",
-            fontSize: "12px",
-          }}
+          disabled={submitting}
         >
           Cancel
         </button>
       </div>
 
-      <form onSubmit={onSubmit} noValidate>
-        <div>
-          <label
-            style={{
-              display: "block",
-              fontSize: "13px",
-              fontWeight: 600,
-              marginBottom: "4px",
-            }}
-          >
-            Customer Name
+      <form className="customers-form" onSubmit={onSubmit} noValidate>
+        <div className="customers-form-grid">
+          <label className="customers-field">
+            <span>Customer name</span>
+            <input
+              value={editName}
+              placeholder="Full customer name"
+              className={errors.name ? "input-error" : ""}
+              onChange={(e) => onNameChange(e.target.value)}
+              disabled={submitting}
+              aria-invalid={errors.name ? true : undefined}
+              required
+            />
+            {errors.name && (
+              <div className="error-message" role="alert">
+                {errors.name}
+              </div>
+            )}
           </label>
-          <input
-            value={editName}
-            placeholder="Full customer name"
-            className={errors.name ? "input-error" : ""}
-            onChange={(e) => onNameChange(e.target.value)}
-            disabled={submitting}
-            required
-          />
-          {errors.name && <div className="error-message">{errors.name}</div>}
-        </div>
 
-        <div style={{ marginTop: "10px" }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: "13px",
-              fontWeight: 600,
-              marginBottom: "4px",
-            }}
-          >
-            10-Digit Phone Number
+          <label className="customers-field">
+            <span>10-digit phone number</span>
+            <input
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="e.g. 9876543210"
+              value={editPhone}
+              className={errors.phone ? "input-error" : ""}
+              onChange={(e) => onPhoneChange(e.target.value)}
+              disabled={submitting}
+              aria-invalid={errors.phone ? true : undefined}
+              required
+            />
+            {errors.phone && (
+              <div className="error-message" role="alert">
+                {errors.phone}
+              </div>
+            )}
           </label>
-          <input
-            type="tel"
-            maxLength={10}
-            placeholder="e.g. 9876543210"
-            value={editPhone}
-            className={errors.phone ? "input-error" : ""}
-            onChange={(e) => onPhoneChange(e.target.value)}
-            disabled={submitting}
-            required
-          />
-          {errors.phone && <div className="error-message">{errors.phone}</div>}
-        </div>
 
-        <div style={{ marginTop: "10px" }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: "13px",
-              fontWeight: 600,
-              marginBottom: "4px",
-            }}
-          >
-            Email Address (optional)
+          <label className="customers-field">
+            <span>Email address</span>
+            <input
+              type="email"
+              placeholder="Optional, for payment receipts"
+              value={editEmail}
+              className={errors.email ? "input-error" : ""}
+              onChange={(e) => onEmailChange?.(e.target.value)}
+              disabled={submitting}
+              aria-invalid={errors.email ? true : undefined}
+            />
+            {errors.email && (
+              <div className="error-message" role="alert">
+                {errors.email}
+              </div>
+            )}
           </label>
-          <input
-            type="email"
-            placeholder="e.g. customer@example.com"
-            value={editEmail}
-            className={errors.email ? "input-error" : ""}
-            onChange={(e) => onEmailChange?.(e.target.value)}
-            disabled={submitting}
-          />
-          {errors.email && <div className="error-message">{errors.email}</div>}
         </div>
 
         {apiError && (
-          <div className="api-error-banner" style={{ marginTop: "12px" }}>
+          <div className="api-error-banner" role="alert">
             {apiError}
           </div>
         )}
         {successMessage && (
-          <div className="success-banner" style={{ marginTop: "12px" }}>
+          <div className="success-banner" role="status">
             {successMessage}
           </div>
         )}
 
-        <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
+        <div className="customers-form-actions">
           <button
             type="submit"
+            className="customers-btn customers-btn-primary"
             disabled={submitting}
-            style={{ background: "#2563eb" }}
           >
-            {submitting ? "Saving Changes..." : "Save Changes"}
+            {submitting ? "Saving changes..." : "Save changes"}
           </button>
           <button
             type="button"
+            className="customers-btn customers-btn-ghost"
             onClick={onCancel}
             disabled={submitting}
-            style={{ background: "#e2e8f0", color: "#334155" }}
           >
             Cancel
           </button>
@@ -168,4 +138,3 @@ export function CustomerEditModal({
     </div>
   );
 }
-

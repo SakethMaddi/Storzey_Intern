@@ -1,6 +1,11 @@
 import { useState } from "react";
 import type { Order, Payment, OrderStage } from "../../../types";
 import { ManualPaymentForm } from "../../payments/components/ManualPaymentForm";
+import {
+  inr,
+  formatOrderDate,
+  getOrderProductionStatus,
+} from "../order-utils";
 
 export interface OrderCardProps {
   order: Order;
@@ -45,12 +50,6 @@ export function OrderCard({
   onArchiveOrder,
   onRestoreOrder,
 }: OrderCardProps) {
-  const amountPaid = order.totalAmount - order.balance;
-  const paidPercentage = Math.min(
-    100,
-    Math.max(0, Math.round((amountPaid / order.totalAmount) * 100))
-  );
-
   const isCancelled = order.status === "CANCELLED";
   const isArchived = !!order.isArchived;
 
@@ -58,6 +57,15 @@ export function OrderCard({
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelError, setCancelError] = useState("");
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const amountPaid = order.totalAmount - order.balance;
+  const paidPercentage = Math.min(
+    100,
+    Math.max(0, Math.round((amountPaid / order.totalAmount) * 100))
+  );
+
+  const prodStatus = getOrderProductionStatus(order, orderStages);
 
   const handleSubmitCancel = () => {
     if (!cancelReason.trim()) {
@@ -70,158 +78,144 @@ export function OrderCard({
     setCancelError("");
   };
 
+  const handleCopyTrackingLink = () => {
+    const url = `${window.location.origin}/track/${order.publicToken}`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
   return (
-    <article className="order-card" aria-label={`Order ${order.id}: ${order.itemName}`}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "8px" }}>
-        <h3 style={{ margin: 0, fontSize: "18px" }}>
-          {order.customer?.name} — {order.itemName}
-          {isCancelled && (
-            <span
-              style={{
-                marginLeft: 10,
-                fontSize: 12,
-                fontWeight: 700,
-                background: "#fef2f2",
-                color: "#b91c1c",
-                borderRadius: 4,
-                padding: "2px 8px",
-                border: "1px solid #fecaca",
-              }}
-            >
-              CANCELLED
+    <article
+      className={`order-card orders-item-card ${isSelected ? "is-expanded" : ""}`}
+      aria-label={`Order ${order.id}: ${order.itemName}`}
+    >
+      {/* ── CARD HEADER ── */}
+      <div className="orders-card-head">
+        <div className="orders-card-title-group">
+          <div className="orders-id-badge">#{order.id}</div>
+          <div>
+            <h3 className="orders-card-title">
+              {order.customer?.name} — {order.itemName}
+            </h3>
+            <span className="orders-card-sub">
+              Placed {formatOrderDate(order.createdAt)} • Phone: {order.customer?.phone}
             </span>
+          </div>
+        </div>
+
+        <div className="orders-card-head-badges">
+          {/* Production Status Badge */}
+          <span className={`orders-badge ${prodStatus.badgeClass}`}>
+            {prodStatus.label}
+          </span>
+
+          {/* Payment Status Badge */}
+          <span
+            className={`orders-badge ${
+              order.paymentStatus === "PAID"
+                ? "badge-paid"
+                : order.paymentStatus === "PARTIALLY_PAID"
+                ? "badge-partial"
+                : "badge-pending"
+            }`}
+          >
+            {order.paymentStatus === "PAID"
+              ? "Fully Paid"
+              : order.paymentStatus === "PARTIALLY_PAID"
+              ? "Partially Paid"
+              : "Pending Payment"}
+          </span>
+
+          {isCancelled && (
+            <span className="orders-badge badge-cancelled">CANCELLED</span>
           )}
           {isArchived && (
-            <span
-              style={{
-                marginLeft: 10,
-                fontSize: 12,
-                fontWeight: 700,
-                background: "#e2e8f0",
-                color: "#475569",
-                borderRadius: 4,
-                padding: "2px 8px",
-              }}
-            >
-              ARCHIVED
-            </span>
+            <span className="orders-badge badge-archived">ARCHIVED</span>
           )}
-        </h3>
-
-        <div style={{ fontSize: "13px", color: "#64748b", fontWeight: 600 }}>
-          Order #{order.id}
         </div>
       </div>
 
-      {/* Prominent High-Level Status Summary (Visible without expanding) */}
-      <div
-        style={{
-          display: "flex",
-          gap: "12px",
-          flexWrap: "wrap",
-          fontSize: "13px",
-          margin: "10px 0 12px",
-          padding: "8px 12px",
-          background: "#f8fafc",
-          borderRadius: "6px",
-          border: "1px solid #e2e8f0",
-          color: "#334155",
-        }}
-      >
-        <div>
-          <span style={{ color: "#64748b" }}>Total: </span>
-          <strong>₹{order.totalAmount.toLocaleString("en-IN")}</strong>
+      {/* ── FINANCIAL & DELIVERY SUMMARY ── */}
+      <div className="orders-summary-bar">
+        <div className="orders-sum-cell">
+          <span className="orders-sum-label">Total Amount</span>
+          <strong className="orders-sum-val">{inr(order.totalAmount)}</strong>
         </div>
-        <div>
-          <span style={{ color: "#64748b" }}>Balance: </span>
-          <strong style={{ color: order.balance > 0 ? "#b91c1c" : "#166534" }}>
-            ₹{order.balance.toLocaleString("en-IN")}
+
+        <div className="orders-sum-cell">
+          <span className="orders-sum-label">Advance Paid</span>
+          <strong className="orders-sum-val" style={{ color: "#166534" }}>
+            {inr(order.advance)}
           </strong>
         </div>
-        <div>
-          <span style={{ color: "#64748b" }}>Payment: </span>
-          <span
-            style={{
-              fontWeight: 600,
-              color:
-                order.paymentStatus === "PAID"
-                  ? "#166534"
-                  : order.paymentStatus === "PARTIALLY_PAID"
-                  ? "#b45309"
-                  : "#b91c1c",
-            }}
+
+        <div className="orders-sum-cell">
+          <span className="orders-sum-label">Balance Due</span>
+          <strong
+            className="orders-sum-val"
+            style={{ color: order.balance > 0 ? "#b91c1c" : "#166534" }}
           >
-            {order.paymentStatus}
-          </span>
+            {inr(order.balance)}
+          </strong>
         </div>
-        {order.promisedDate && (
-          <div>
-            <span style={{ color: "#64748b" }}>Promised Delivery: </span>
-            <strong>
-              {new Date(order.promisedDate).toLocaleDateString("en-IN", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })}
-            </strong>
-          </div>
-        )}
+
+        <div className="orders-sum-cell">
+          <span className="orders-sum-label">Promised Delivery</span>
+          <strong className="orders-sum-val">
+            {formatOrderDate(order.promisedDate)}
+          </strong>
+        </div>
       </div>
 
-      {/* Cancellation Reason Notice */}
+      {/* ── PROGRESS BAR ── */}
+      <div className="orders-progress-bar-wrap">
+        <div className="orders-progress-track">
+          <div
+            className="orders-progress-fill"
+            style={{ width: `${paidPercentage}%` }}
+          />
+        </div>
+        <div className="orders-progress-labels">
+          <span>{paidPercentage}% Paid</span>
+          <span>
+            {order.balance <= 0 ? "Settled" : `${inr(order.balance)} Remaining`}
+          </span>
+        </div>
+      </div>
+
+      {/* ── CANCELLATION NOTICE BANNER ── */}
       {isCancelled && order.cancellationReason && (
-        <div
-          style={{
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            borderRadius: 8,
-            padding: "10px 14px",
-            marginBottom: 12,
-            fontSize: "13px",
-            color: "#b91c1c",
-          }}
-        >
+        <div className="orders-cancel-notice" role="alert">
           <strong>Cancellation Reason:</strong> {order.cancellationReason}
           {order.cancelledAt && (
-            <span style={{ display: "block", fontSize: "11px", color: "#991b1b", marginTop: "2px" }}>
+            <span className="orders-cancel-date">
               Cancelled on {new Date(order.cancelledAt).toLocaleString("en-IN")}
             </span>
           )}
         </div>
       )}
 
-      {/* Actions Toolbar */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+      {/* ── CARD ACTION BUTTONS ── */}
+      <div className="orders-actions-bar">
         <button
           type="button"
           onClick={onToggleDetails}
-          style={{
-            background: isSelected ? "#475569" : "#2563eb",
-            padding: "8px 14px",
-            fontSize: "14px",
-            borderRadius: "8px",
-          }}
+          className="orders-btn orders-btn-primary"
         >
           {isSelected ? "Hide Details" : "View Details"}
         </button>
 
-        {/* Cancel button — only for non-cancelled, non-archived orders */}
         {!isCancelled && !isArchived && (
           <button
             type="button"
             onClick={() => setShowCancelForm((v) => !v)}
-            style={{
-              background: "#ef4444",
-              padding: "8px 14px",
-              fontSize: "14px",
-              borderRadius: "8px",
-            }}
+            className="orders-btn orders-btn-danger"
           >
             {showCancelForm ? "Hide Cancel" : "Cancel Order"}
           </button>
         )}
 
-        {/* Archive button — for cancelled or paid orders that aren't archived yet */}
         {(isCancelled || order.paymentStatus === "PAID") && !isArchived && (
           <button
             type="button"
@@ -230,50 +224,30 @@ export function OrderCard({
                 onArchiveOrder(order.id);
               }
             }}
-            style={{
-              background: "#64748b",
-              padding: "8px 14px",
-              fontSize: "14px",
-              borderRadius: "8px",
-            }}
+            className="orders-btn orders-btn-ghost"
           >
             Archive Order
           </button>
         )}
 
-        {/* Restore button for archived orders */}
         {isArchived && (
           <button
             type="button"
             onClick={() => onRestoreOrder(order.id)}
-            style={{
-              background: "#059669",
-              padding: "8px 14px",
-              fontSize: "14px",
-              borderRadius: "8px",
-            }}
+            className="orders-btn orders-btn-success"
           >
             Restore Order
           </button>
         )}
       </div>
 
-      {/* Inline Cancellation Form */}
+      {/* ── INLINE CANCELLATION FORM ── */}
       {showCancelForm && (
-        <div
-          style={{
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            borderRadius: 8,
-            padding: 14,
-            marginBottom: 14,
-          }}
-        >
-          <p style={{ margin: "0 0 6px", fontWeight: 700, color: "#b91c1c", fontSize: "14px" }}>
-            Cancel Order #{order.id} — {order.itemName}
-          </p>
-          <p style={{ margin: "0 0 10px", fontSize: "12px", color: "#7f1d1d" }}>
-            Cancelling this order preserves all historical customer data and payment records, but stops all further production and marks the order as cancelled.
+        <div className="orders-cancel-dialog">
+          <h4>Cancel Order #{order.id} — {order.itemName}</h4>
+          <p>
+            Cancelling this order stops production milestones while safely preserving
+            all financial transaction records.
           </p>
           <textarea
             placeholder="Enter reason for cancelling this order (e.g., Customer requested change, duplicate order)..."
@@ -283,28 +257,14 @@ export function OrderCard({
               if (cancelError) setCancelError("");
             }}
             rows={3}
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: cancelError ? "1px solid #ef4444" : "1px solid #fca5a5",
-              borderRadius: 8,
-              fontSize: 14,
-              background: "#fff",
-              resize: "vertical",
-              marginBottom: 8,
-              boxSizing: "border-box",
-            }}
+            className={`orders-textarea ${cancelError ? "input-error" : ""}`}
           />
-          {cancelError && (
-            <div style={{ color: "#dc2626", fontSize: "12px", marginBottom: "8px" }}>
-              {cancelError}
-            </div>
-          )}
-          <div style={{ display: "flex", gap: 8 }}>
+          {cancelError && <div className="error-message">{cancelError}</div>}
+          <div className="orders-dialog-actions">
             <button
               type="button"
               onClick={handleSubmitCancel}
-              style={{ background: "#dc2626", padding: "8px 16px", fontSize: "13px", fontWeight: 600 }}
+              className="orders-btn orders-btn-danger"
             >
               Confirm Cancellation
             </button>
@@ -315,13 +275,7 @@ export function OrderCard({
                 setCancelReason("");
                 setCancelError("");
               }}
-              style={{
-                background: "#f1f5f9",
-                color: "#334155",
-                border: "1px solid #cbd5e1",
-                padding: "8px 16px",
-                fontSize: "13px",
-              }}
+              className="orders-btn orders-btn-ghost"
             >
               Go Back
             </button>
@@ -329,254 +283,378 @@ export function OrderCard({
         </div>
       )}
 
-      {/* Progress Bar */}
-      <div>
-        <progress value={amountPaid} max={order.totalAmount} />
-        <p style={{ fontSize: "12px", color: "#64748b", margin: "4px 0 0" }}>
-          {paidPercentage}% Paid ({amountPaid >= order.totalAmount ? "Fully Paid" : `₹${order.balance.toLocaleString("en-IN")} Remaining`})
-        </p>
-      </div>
-
-      {/* Expanded Details Section */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* ── 6-SECTION EXPANDED ORDER DETAILS ── */}
+      {/* ───────────────────────────────────────────────────────────── */}
       {isSelected && (
-        <div style={{ marginTop: 16, borderTop: "1px solid #e2e8f0", paddingTop: 16 }}>
-          <p>
-            <strong>Customer:</strong> {order.customer?.name} ({order.customer?.phone})
-          </p>
-          <p>
-            <strong>Advance Paid:</strong> ₹{order.advance.toLocaleString("en-IN")}
-          </p>
-          <p>
-            <strong>Outstanding Balance:</strong>{" "}
-            <span style={{ color: order.balance > 0 ? "#b91c1c" : "#166534", fontWeight: 700 }}>
-              ₹{order.balance.toLocaleString("en-IN")}
-            </span>
-          </p>
-
-          {/* Customer Public Tracking URL */}
-          <div style={{ margin: "16px 0", padding: "12px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
-            <p style={{ margin: "0 0 6px", fontWeight: 600, fontSize: "13px", color: "#1e293b" }}>
-              Customer Public Tracking Link:
-            </p>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <input
-                type="text"
-                value={`${window.location.origin}/track/${order.publicToken}`}
-                readOnly
-                style={{ flex: 1, minWidth: "220px", fontSize: "12px", margin: 0 }}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(
-                    `${window.location.origin}/track/${order.publicToken}`
-                  );
-                  alert("Tracking link copied to clipboard!");
-                }}
-                style={{ padding: "8px 14px", fontSize: "13px", background: "#0284c7" }}
-              >
-                Copy Link
-              </button>
-              <a
-                href={`/track/${order.publicToken}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "8px 14px",
-                  fontSize: "13px",
-                  background: "#e2e8f0",
-                  color: "#1e293b",
-                  borderRadius: "8px",
-                  textDecoration: "none",
-                  fontWeight: 600,
-                }}
-              >
-                Open Page ↗
-              </a>
+        <div className="order-details-panel">
+          {/* SECTION 1: CUSTOMER DETAILS */}
+          <section className="order-detail-section" aria-label="Customer Details">
+            <div className="order-section-head">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              <h4>1. Customer Details</h4>
             </div>
-          </div>
-
-          {/* Record Cash Payment Form */}
-          {!isCancelled && !isArchived && (
-            <div style={{ marginTop: 20 }}>
-              <h4 style={{ margin: "0 0 10px", fontSize: "15px", color: "#1e293b" }}>
-                Record Cash Payment
-              </h4>
-              <ManualPaymentForm
-                orderId={order.id}
-                balance={order.balance}
-                amount={paymentInput.amount}
-                type={paymentInput.type}
-                error={paymentError}
-                success={paymentSuccess}
-                submitting={isSubmittingPayment}
-                onAmountChange={onPaymentAmountChange}
-                onTypeChange={onPaymentTypeChange}
-                onSubmit={onRecordPayment}
-                onReconcile={onReconcile}
-              />
+            <div className="order-detail-grid">
+              <div className="order-detail-item">
+                <span className="order-detail-label">Customer Name</span>
+                <strong className="order-detail-value">{order.customer?.name}</strong>
+              </div>
+              <div className="order-detail-item">
+                <span className="order-detail-label">Phone Number</span>
+                <strong className="order-detail-value">
+                  <a href={`tel:${order.customer?.phone}`} style={{ color: "#0284c7", textDecoration: "none" }}>
+                    {order.customer?.phone}
+                  </a>
+                </strong>
+              </div>
+              <div className="order-detail-item">
+                <span className="order-detail-label">Email</span>
+                <strong className="order-detail-value">
+                  {order.customer?.email || "Not provided"}
+                </strong>
+              </div>
+              <div className="order-detail-item">
+                <span className="order-detail-label">Account Status</span>
+                <strong className="order-detail-value">
+                  {order.customer?.isArchived ? "Archived Client" : "Active Client"}
+                </strong>
+              </div>
             </div>
-          )}
+          </section>
 
-          {/* Payment History */}
-          <div style={{ marginTop: 20 }}>
-            <h4 style={{ margin: "0 0 8px", fontSize: "15px", color: "#1e293b" }}>
-              Payment History
-            </h4>
-            {orderPayments.length === 0 ? (
-              <p style={{ fontSize: "13px", color: "#64748b" }}>No payments recorded yet.</p>
-            ) : (
-              orderPayments.map((p) => (
-                <div
-                  key={p.id}
-                  style={{
-                    padding: "8px 12px",
-                    background: "#ffffff",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "6px",
-                    marginBottom: "6px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    fontSize: "13px",
-                  }}
-                >
-                  <div>
-                    <strong>₹{p.amount.toLocaleString("en-IN")}</strong> ({p.paymentType})
-                    <span
-                      style={{
-                        marginLeft: 8,
-                        fontSize: 11,
-                        padding: "1px 6px",
-                        borderRadius: 4,
-                        background:
-                          p.status === "COMPLETED" || p.status === "CAPTURED"
-                            ? "#dcfce7"
-                            : p.status === "CANCELLED"
-                            ? "#fee2e2"
-                            : p.status === "FAILED"
-                            ? "#fee2e2"
-                            : "#fef3c7",
-                        color:
-                          p.status === "COMPLETED" || p.status === "CAPTURED"
-                            ? "#166534"
-                            : p.status === "CANCELLED"
-                            ? "#991b1b"
-                            : p.status === "FAILED"
-                            ? "#991b1b"
-                            : "#92400e",
-                      }}
-                    >
-                      {p.status}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ fontSize: "12px", color: "#64748b" }}>
-                      {new Date(p.createdAt).toLocaleDateString("en-IN")}
-                    </span>
-                    {p.status !== "CANCELLED" && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Are you sure you want to cancel this payment of ₹${p.amount.toLocaleString("en-IN")}?`
-                            )
-                          ) {
-                            onCancelPayment?.(order.id, p.id);
-                          }
-                        }}
-                        style={{
-                          background: "#fee2e2",
-                          color: "#991b1b",
-                          border: "1px solid #fecaca",
-                          padding: "3px 8px",
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Cancel Payment
-                      </button>
-                    )}
+          {/* SECTION 2: ORDER INFORMATION */}
+          <section className="order-detail-section" aria-label="Order Information">
+            <div className="order-section-head">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+              <h4>2. Order Information</h4>
+            </div>
+            <div className="order-detail-grid">
+              <div className="order-detail-item">
+                <span className="order-detail-label">Order Reference</span>
+                <strong className="order-detail-value">Order #{order.id}</strong>
+              </div>
+              <div className="order-detail-item">
+                <span className="order-detail-label">Order Date</span>
+                <strong className="order-detail-value">
+                  {formatOrderDate(order.createdAt)}
+                </strong>
+              </div>
+              <div className="order-detail-item">
+                <span className="order-detail-label">Promised Delivery Date</span>
+                <strong className="order-detail-value">
+                  {formatOrderDate(order.promisedDate)}
+                </strong>
+              </div>
+              <div className="order-detail-item">
+                <span className="order-detail-label">Current Status</span>
+                <strong className="order-detail-value">
+                  {isCancelled ? "Cancelled" : "Active Production"}
+                </strong>
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 3: ITEM & SERVICE DETAILS */}
+          <section className="order-detail-section" aria-label="Item and Service Details">
+            <div className="order-section-head">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <path d="M16 10a4 4 0 0 1-8 0" />
+              </svg>
+              <h4>3. Item & Service Details</h4>
+            </div>
+            <div className="order-item-desc-box">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                <div>
+                  <span className="order-detail-label">Item / Garment</span>
+                  <div style={{ fontSize: "16px", fontWeight: 700, color: "#1e293b", marginTop: "2px" }}>
+                    {order.itemName}
                   </div>
                 </div>
-              ))
-            )}
-          </div>
-
-          {/* Production Stages */}
-          <div style={{ marginTop: 20 }}>
-            <h4 style={{ margin: "0 0 8px", fontSize: "15px", color: "#1e293b" }}>
-              Production Stages
-            </h4>
-            {orderStages.length === 0 ? (
-              <p style={{ fontSize: "13px", color: "#64748b" }}>No stages defined.</p>
-            ) : (
-              orderStages.map((stage) => (
-                <div
-                  key={stage.id}
-                  style={{
-                    padding: "8px 12px",
-                    background: "#ffffff",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "6px",
-                    marginBottom: "6px",
-                    fontSize: "13px",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontWeight: 600 }}>{stage.name}</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        padding: "2px 8px",
-                        borderRadius: 4,
-                        background:
-                          stage.status === "COMPLETED"
-                            ? "#dcfce7"
-                            : stage.status === "IN_PROGRESS"
-                            ? "#eff6ff"
-                            : "#f1f5f9",
-                        color:
-                          stage.status === "COMPLETED"
-                            ? "#15803d"
-                            : stage.status === "IN_PROGRESS"
-                            ? "#1d4ed8"
-                            : "#64748b",
-                      }}
-                    >
-                      {stage.status}
-                    </span>
-                    {!isCancelled && (
-                      <select
-                        value={stage.status}
-                        onChange={(e) => onUpdateStageStatus(stage.id, e.target.value)}
-                        disabled={isUpdatingStage}
-                        style={{
-                          fontSize: "12px",
-                          padding: "3px 6px",
-                          width: "auto",
-                          margin: 0,
-                          borderRadius: "4px",
-                        }}
-                      >
-                        <option value="PENDING">Pending</option>
-                        <option value="IN_PROGRESS">In Progress</option>
-                        <option value="COMPLETED">Completed</option>
-                      </select>
-                    )}
-                  </div>
-                  </div>
+                <div style={{ fontSize: "13px", color: "#64748b" }}>
+                  Bespoke tailored boutique order
                 </div>
-              ))
+              </div>
+            </div>
+          </section>
+
+          {/* SECTION 4: PAYMENT SUMMARY */}
+          <section className="order-detail-section" aria-label="Payment Summary">
+            <div className="order-section-head">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                <line x1="1" y1="10" x2="23" y2="10" />
+              </svg>
+              <h4>4. Payment Summary</h4>
+            </div>
+
+            {/* Financial 4-Stat Cards */}
+            <div className="order-payment-metrics">
+              <div className="order-pay-card">
+                <span>Total Amount</span>
+                <strong>{inr(order.totalAmount)}</strong>
+              </div>
+              <div className="order-pay-card">
+                <span>Advance Paid</span>
+                <strong style={{ color: "#166534" }}>{inr(order.advance)}</strong>
+              </div>
+              <div className="order-pay-card">
+                <span>Remaining Balance</span>
+                <strong style={{ color: order.balance > 0 ? "#b91c1c" : "#166534" }}>
+                  {inr(order.balance)}
+                </strong>
+              </div>
+              <div className="order-pay-card">
+                <span>Payment Status</span>
+                <strong style={{ color: order.paymentStatus === "PAID" ? "#166534" : "#b45309" }}>
+                  {order.paymentStatus}
+                </strong>
+              </div>
+            </div>
+
+            {/* Record Cash Payment Form */}
+            {!isCancelled && !isArchived && (
+              <div style={{ marginTop: "16px" }}>
+                <h5 style={{ margin: "0 0 10px", fontSize: "14px", color: "#1e293b", fontWeight: 700 }}>
+                  Record Cash Payment
+                </h5>
+                <ManualPaymentForm
+                  orderId={order.id}
+                  balance={order.balance}
+                  amount={paymentInput.amount}
+                  type={paymentInput.type}
+                  error={paymentError}
+                  success={paymentSuccess}
+                  submitting={isSubmittingPayment}
+                  onAmountChange={onPaymentAmountChange}
+                  onTypeChange={onPaymentTypeChange}
+                  onSubmit={onRecordPayment}
+                  onReconcile={onReconcile}
+                />
+              </div>
             )}
-          </div>
+
+            {/* Payment History List */}
+            <div style={{ marginTop: "20px" }}>
+              <h5 style={{ margin: "0 0 10px", fontSize: "14px", color: "#1e293b", fontWeight: 700 }}>
+                Payment History
+              </h5>
+              {orderPayments.length === 0 ? (
+                <p style={{ fontSize: "13px", color: "#64748b", margin: 0 }}>
+                  No payments recorded yet.
+                </p>
+              ) : (
+                <div className="orders-payment-history-list">
+                  {orderPayments.map((p) => (
+                    <div key={p.id} className="orders-payment-item">
+                      <div className="orders-pay-info">
+                        <strong>{inr(p.amount)}</strong>
+                        <span className="orders-pay-type">({p.paymentType})</span>
+                        <span
+                          className={`orders-badge ${
+                            p.status === "COMPLETED" || p.status === "CAPTURED"
+                              ? "badge-paid"
+                              : p.status === "CANCELLED" || p.status === "FAILED"
+                              ? "badge-cancelled"
+                              : "badge-partial"
+                          }`}
+                        >
+                          {p.status}
+                        </span>
+                      </div>
+                      <div className="orders-pay-actions">
+                        <span className="orders-pay-date">
+                          {formatOrderDate(p.createdAt)}
+                        </span>
+                        {p.status !== "CANCELLED" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Are you sure you want to cancel this payment of ${inr(p.amount)}?`
+                                )
+                              ) {
+                                onCancelPayment?.(order.id, p.id);
+                              }
+                            }}
+                            className="orders-btn orders-btn-danger"
+                            style={{ padding: "3px 8px", fontSize: "11px" }}
+                          >
+                            Cancel Payment
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* SECTION 5: PRODUCTION PROGRESS & TRACKER */}
+          <section className="order-detail-section" aria-label="Production Stages">
+            <div className="order-section-head">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <h4>5. Production Stages</h4>
+            </div>
+
+            {/* Five-Stage Production Tracker */}
+            <div className="production-tracker" role="region" aria-label="Production stages timeline">
+              {orderStages.length === 0 ? (
+                <p style={{ fontSize: "13px", color: "#64748b", margin: 0 }}>
+                  No production stages assigned to this order.
+                </p>
+              ) : (
+                <div className="tracker-stages-list">
+                  {orderStages.map((stage, index) => {
+                    const isCompleted = stage.status === "COMPLETED";
+                    const isInProgress = stage.status === "IN_PROGRESS";
+                    const isPending = stage.status === "PENDING";
+
+                    return (
+                      <div
+                        key={stage.id}
+                        className={`tracker-stage-card ${
+                          isCompleted
+                            ? "stage-done"
+                            : isInProgress
+                            ? "stage-active"
+                            : "stage-pending"
+                        }`}
+                      >
+                        <div className="stage-card-header">
+                          <div className="stage-node-indicator">
+                            {isCompleted ? (
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            ) : (
+                              <span>{index + 1}</span>
+                            )}
+                          </div>
+                          <span className="stage-card-name">{stage.name}</span>
+                          <span
+                            className={`orders-badge ${
+                              isCompleted
+                                ? "badge-paid"
+                                : isInProgress
+                                ? "badge-inprogress"
+                                : "badge-archived"
+                            }`}
+                            style={{ marginLeft: "auto" }}
+                          >
+                            {stage.status}
+                          </span>
+                        </div>
+
+                        {/* Controls: select dropdown and quick advance button */}
+                        {!isCancelled && (
+                          <div className="stage-controls-wrap">
+                            <select
+                              value={stage.status}
+                              onChange={(e) =>
+                                onUpdateStageStatus(stage.id, e.target.value)
+                              }
+                              disabled={isUpdatingStage}
+                              className="stage-status-select"
+                              aria-label={`Status for ${stage.name}`}
+                            >
+                              <option value="PENDING">Pending</option>
+                              <option value="IN_PROGRESS">In Progress</option>
+                              <option value="COMPLETED">Completed</option>
+                            </select>
+
+                            {/* Quick advance button */}
+                            {isPending && (
+                              <button
+                                type="button"
+                                disabled={isUpdatingStage}
+                                onClick={() =>
+                                  onUpdateStageStatus(stage.id, "IN_PROGRESS")
+                                }
+                                className="orders-btn orders-btn-primary stage-quick-btn"
+                              >
+                                Start Stage
+                              </button>
+                            )}
+
+                            {isInProgress && (
+                              <button
+                                type="button"
+                                disabled={isUpdatingStage}
+                                onClick={() =>
+                                  onUpdateStageStatus(stage.id, "COMPLETED")
+                                }
+                                className="orders-btn orders-btn-success stage-quick-btn"
+                              >
+                                Mark Completed
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* SECTION 6: CUSTOMER TRACKING LINK & ORDER AUDIT */}
+          <section className="order-detail-section" aria-label="Customer Tracking Link">
+            <div className="order-section-head">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+              <h4>6. Customer Public Tracking Link</h4>
+            </div>
+
+            <div className="tracking-link-box">
+              <p className="tracking-link-desc">
+                Share this secure tracking link with the customer to allow them to view live
+                tailoring milestones and pay their advance or remaining balance online.
+              </p>
+              <div className="tracking-input-row">
+                <input
+                  type="text"
+                  value={`${window.location.origin}/track/${order.publicToken}`}
+                  readOnly
+                  className="tracking-url-input"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyTrackingLink}
+                  className="orders-btn orders-btn-primary"
+                >
+                  {copiedLink ? "✓ Copied!" : "Copy Link"}
+                </button>
+                <a
+                  href={`/track/${order.publicToken}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="orders-btn orders-btn-ghost"
+                  style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                >
+                  Open Page ↗
+                </a>
+              </div>
+            </div>
+          </section>
         </div>
       )}
     </article>

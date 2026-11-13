@@ -67,8 +67,8 @@ export function OrderCreateForm({
   onSubmit,
 }: OrderCreateFormProps) {
   return (
-    <>
-      {/* Toast Notification outside the form flow */}
+    <div className="orders-create-card">
+      {/* Toast Notification */}
       {orderSuccess && (
         <div className="toast-notification success-toast" role="alert" aria-live="polite">
           <div className="toast-content">
@@ -90,114 +90,165 @@ export function OrderCreateForm({
         </div>
       )}
 
-      <h2>Create Order</h2>
+      <form onSubmit={onSubmit} noValidate className="orders-form">
+        {/* Section 1: Customer & Garment Details */}
+        <fieldset className="orders-form-group">
+          <legend className="orders-form-legend">1. Customer & Garment Details</legend>
+          <div className="orders-form-grid-2">
+            {/* Customer Dropdown */}
+            <div className="orders-form-field">
+              <label htmlFor="order-customer-select" className="orders-form-label">
+                Select Customer <span className="required-star">*</span>
+              </label>
+              <select
+                id="order-customer-select"
+                value={customerId}
+                className={orderErrors.customerId ? "input-error" : ""}
+                onChange={(e) => onCustomerIdChange(e.target.value)}
+                disabled={isSubmittingOrder}
+                required
+              >
+                <option value="">Select Customer</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name} - {customer.phone}
+                  </option>
+                ))}
+              </select>
+              {orderErrors.customerId && (
+                <div className="error-message">{orderErrors.customerId}</div>
+              )}
+            </div>
 
-      <form onSubmit={onSubmit} noValidate>
-        <div>
-          <select
-            value={customerId}
-            className={orderErrors.customerId ? "input-error" : ""}
-            onChange={(e) => onCustomerIdChange(e.target.value)}
-            disabled={isSubmittingOrder}
-            required
-          >
-            <option value="">Select Customer</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.name} - {customer.phone}
-              </option>
-            ))}
-          </select>
-          {orderErrors.customerId && (
-            <div className="error-message">{orderErrors.customerId}</div>
-          )}
-        </div>
+            {/* Item Name */}
+            <div className="orders-form-field">
+              <label htmlFor="order-item-name" className="orders-form-label">
+                Garment / Item Name <span className="required-star">*</span>
+              </label>
+              <input
+                id="order-item-name"
+                placeholder="Item name"
+                value={itemName}
+                className={orderErrors.itemName ? "input-error" : ""}
+                onChange={(e) => onItemNameChange(e.target.value)}
+                disabled={isSubmittingOrder}
+                required
+              />
+              {orderErrors.itemName && (
+                <div className="error-message">{orderErrors.itemName}</div>
+              )}
+            </div>
+          </div>
+        </fieldset>
 
-        <div>
-          <input
-            placeholder="Item name"
-            value={itemName}
-            className={orderErrors.itemName ? "input-error" : ""}
-            onChange={(e) => onItemNameChange(e.target.value)}
+        {/* Section 2: Pricing & Delivery Schedule */}
+        <fieldset className="orders-form-group">
+          <legend className="orders-form-legend">2. Pricing & Delivery Schedule</legend>
+          <div className="orders-form-grid-3">
+            {/* Total Amount */}
+            <div className="orders-form-field">
+              <label htmlFor="order-total-amount" className="orders-form-label">
+                Total Amount (₹) <span className="required-star">*</span>
+              </label>
+              <input
+                id="order-total-amount"
+                type="number"
+                placeholder="Total amount (₹)"
+                value={totalAmount}
+                className={orderErrors.totalAmount ? "input-error" : ""}
+                onChange={(e) => onTotalAmountChange(e.target.value)}
+                disabled={isSubmittingOrder}
+                required
+              />
+              {orderErrors.totalAmount && (
+                <div className="error-message">{orderErrors.totalAmount}</div>
+              )}
+            </div>
+
+            {/* Advance Amount */}
+            <div className="orders-form-field">
+              <label htmlFor="order-advance-amount" className="orders-form-label">
+                Advance Amount (₹) <span className="required-star">*</span>
+              </label>
+              <input
+                id="order-advance-amount"
+                type="number"
+                placeholder="Advance amount (₹)"
+                value={advance}
+                className={orderErrors.advance ? "input-error" : ""}
+                onChange={(e) => onAdvanceChange(e.target.value)}
+                disabled={isSubmittingOrder}
+                required
+              />
+              {orderErrors.advance && (
+                <div className="error-message">{orderErrors.advance}</div>
+              )}
+            </div>
+
+            {/* Promised Date */}
+            <div className="orders-form-field">
+              <label htmlFor="order-promised-date" className="orders-form-label">
+                Promised Delivery Date <span className="required-star">*</span>
+              </label>
+              <input
+                id="order-promised-date"
+                type="date"
+                value={promisedDate}
+                className={orderErrors.promisedDate ? "input-error" : ""}
+                min={new Date().toISOString().split("T")[0]}
+                onChange={(e) => onPromisedDateChange(e.target.value)}
+                disabled={isSubmittingOrder}
+                required
+              />
+              {orderErrors.promisedDate && (
+                <div className="error-message">{orderErrors.promisedDate}</div>
+              )}
+            </div>
+          </div>
+        </fieldset>
+
+        {/* Section 3: Custom Order Stages Management */}
+        <fieldset className="orders-form-group">
+          <legend className="orders-form-legend">3. Production Workflow Stages</legend>
+          <StageManagerInput
+            stages={orderStages}
+            newStageInput={newStageInput}
+            stageInputError={stageInputError}
+            orderErrorStage={orderErrors.stages}
             disabled={isSubmittingOrder}
-            required
+            onNewStageInputChange={onNewStageInputChange}
+            onAddStage={onAddStage}
+            onRemoveStage={onRemoveStage}
+            onMoveStage={onMoveStage}
+            onEditStageName={onEditStageName}
+            onResetDefaultStages={onResetDefaultStages}
           />
-          {orderErrors.itemName && (
-            <div className="error-message">{orderErrors.itemName}</div>
-          )}
-        </div>
-
-        <div>
-          <input
-            type="number"
-            placeholder="Total amount (₹)"
-            value={totalAmount}
-            className={orderErrors.totalAmount ? "input-error" : ""}
-            onChange={(e) => onTotalAmountChange(e.target.value)}
-            disabled={isSubmittingOrder}
-            required
-          />
-          {orderErrors.totalAmount && (
-            <div className="error-message">{orderErrors.totalAmount}</div>
-          )}
-        </div>
-
-        <div>
-          <input
-            type="number"
-            placeholder="Advance amount (₹)"
-            value={advance}
-            className={orderErrors.advance ? "input-error" : ""}
-            onChange={(e) => onAdvanceChange(e.target.value)}
-            disabled={isSubmittingOrder}
-            required
-          />
-          {orderErrors.advance && (
-            <div className="error-message">{orderErrors.advance}</div>
-          )}
-        </div>
-
-        <div>
-          <input
-            type="date"
-            value={promisedDate}
-            className={orderErrors.promisedDate ? "input-error" : ""}
-            min={new Date().toISOString().split("T")[0]}
-            onChange={(e) => onPromisedDateChange(e.target.value)}
-            disabled={isSubmittingOrder}
-            required
-          />
-          {orderErrors.promisedDate && (
-            <div className="error-message">{orderErrors.promisedDate}</div>
-          )}
-        </div>
-
-        {/* Custom Order Stages Management */}
-        <StageManagerInput
-          stages={orderStages}
-          newStageInput={newStageInput}
-          stageInputError={stageInputError}
-          orderErrorStage={orderErrors.stages}
-          disabled={isSubmittingOrder}
-          onNewStageInputChange={onNewStageInputChange}
-          onAddStage={onAddStage}
-          onRemoveStage={onRemoveStage}
-          onMoveStage={onMoveStage}
-          onEditStageName={onEditStageName}
-          onResetDefaultStages={onResetDefaultStages}
-        />
+        </fieldset>
 
         {orderApiError && <div className="api-error-banner">{orderApiError}</div>}
 
-        <button
-          type="submit"
-          disabled={isSubmittingOrder}
-          style={{ marginTop: "12px" }}
-        >
-          {isSubmittingOrder ? "Creating Order..." : "Create Order"}
-        </button>
+        <div className="orders-form-submit-row">
+          <button
+            type="submit"
+            disabled={isSubmittingOrder}
+            className="orders-btn orders-btn-primary orders-submit-btn"
+          >
+            {isSubmittingOrder ? (
+              <span>Creating Order...</span>
+            ) : (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="12" y1="18" x2="12" y2="12" />
+                  <line x1="9" y1="15" x2="15" y2="15" />
+                </svg>
+                Create Order & Generate Payment Link
+              </span>
+            )}
+          </button>
+        </div>
       </form>
-    </>
+    </div>
   );
 }
-
