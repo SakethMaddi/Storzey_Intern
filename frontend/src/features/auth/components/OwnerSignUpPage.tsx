@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../config";
 import { ownerRegisterSchema } from "../../../validation";
@@ -20,13 +20,17 @@ export function OwnerSignUpPage({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [refId, setRefId] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const submitLock = useRef(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitting) return; // Prevent duplicate submissions
+    if (submitLock.current) return;
+    submitLock.current = true;
     setError("");
+    setRefId("");
     setFieldErrors({});
 
     const validationResult = ownerRegisterSchema.safeParse({
@@ -48,6 +52,7 @@ export function OwnerSignUpPage({
       }
       setFieldErrors(formattedErrors);
       setError(validationResult.error.issues[0]?.message || "Please correct the highlighted fields.");
+      submitLock.current = false;
       return;
     }
 
@@ -82,19 +87,51 @@ export function OwnerSignUpPage({
         }
       }
     } catch (err: any) {
-      if (err.response?.data?.errors) {
-        const backendErrors: Record<string, string> = {};
-        for (const [key, msgs] of Object.entries(err.response.data.errors as Record<string, string[]>)) {
-          if (Array.isArray(msgs) && msgs.length > 0) {
-            backendErrors[key] = msgs[0];
-          }
-        }
-        setFieldErrors(backendErrors);
+      if (!err.response || err.code === "ERR_NETWORK" || err.message === "Network Error") {
+        setError("Unable to connect. Please check your internet connection and try again.");
+        setRefId("");
+        return;
       }
+
+      const status = err.response?.status;
+      const responseData = err.response?.data;
+
+      if (status === 400) {
+        if (responseData?.errors && typeof responseData.errors === "object") {
+          const backendErrors: Record<string, string> = {};
+          for (const [key, msgs] of Object.entries(responseData.errors as Record<string, any>)) {
+            if (Array.isArray(msgs) && msgs.length > 0) {
+              backendErrors[key] = String(msgs[0]);
+            } else if (typeof msgs === "string") {
+              backendErrors[key] = msgs;
+            }
+          }
+          setFieldErrors(backendErrors);
+        }
+        const msg = responseData?.message;
+        const isSensitive = /prisma|sql|database|table|column|select|stack|at \//i.test(msg || "");
+        setError(
+          isSensitive
+            ? "Please correct the highlighted fields."
+            : (msg || "Please correct the highlighted fields.")
+        );
+        setRefId("");
+        return;
+      }
+
+      if (status === 409) {
+        setError(responseData?.message || "An account with these details already exists.");
+        setRefId("");
+        return;
+      }
+
+      const serverRefId = responseData?.refId || "";
+      setRefId(serverRefId);
       setError(
-        err.response?.data?.message || "Registration failed. Please try again."
+        "We couldn't complete your registration right now. Please try again in a few moments. If the issue continues, contact support."
       );
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   };
@@ -108,7 +145,16 @@ export function OwnerSignUpPage({
           Secure login for your boutique business.
         </p>
 
-        {error && <div className="api-error-banner">{error}</div>}
+        {error && (
+          <div className="api-error-banner" role="alert">
+            <div>{error}</div>
+            {refId && (
+              <div style={{ fontSize: "12px", marginTop: "4px", opacity: 0.85 }}>
+                Reference ID: <code>{refId}</code>
+              </div>
+            )}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} noValidate>
           <div>

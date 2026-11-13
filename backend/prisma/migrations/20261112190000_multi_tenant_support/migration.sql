@@ -1,5 +1,3 @@
-BEGIN;
-
 -- ============================================================================
 -- 1. PRE-MIGRATION VALIDATION CHECKS (Execute before any modifications)
 -- ============================================================================
@@ -110,6 +108,4 @@ CREATE INDEX IF NOT EXISTS "Customer_ownerId_name_idx" ON "Customer"("ownerId", 
 CREATE INDEX IF NOT EXISTS "Order_ownerId_createdAt_idx" ON "Order"("ownerId", "createdAt" DESC);
 CREATE INDEX IF NOT EXISTS "Order_ownerId_customerId_idx" ON "Order"("ownerId", "customerId");
 CREATE INDEX IF NOT EXISTS "Order_ownerId_paymentStatus_idx" ON "Order"("ownerId", "paymentStatus");
-
-COMMIT;
 

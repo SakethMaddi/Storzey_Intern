@@ -198,6 +198,22 @@ function receiptFrom(
   };
 }
 
+const PENDING_GATEWAY_STATUSES = new Set([
+  "created",
+  "authorized",
+  "pending",
+  "processing",
+]);
+
+export type GatewayPaymentClass = "captured" | "failed" | "pending" | "unsupported";
+
+export function classifyGatewayPaymentStatus(status: unknown): GatewayPaymentClass {
+  if (status === "captured") return "captured";
+  if (status === "failed") return "failed";
+  if (typeof status === "string" && PENDING_GATEWAY_STATUSES.has(status)) return "pending";
+  return "unsupported";
+}
+
 export function toPublicPaymentVerification(view: PublicPaymentVerification) {
   return {
     success: true as const,

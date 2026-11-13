@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import crypto from "node:crypto";
 import cors from "@fastify/cors";
 import fastifyJwt from "@fastify/jwt";
 import fastifyCookie from "@fastify/cookie";
@@ -20,6 +21,7 @@ import { publicRoutes } from "./modules/public/public.routes.js";
 import { webhookRoutes } from "./modules/webhooks/webhook.routes.js";
 import { emailRoutes } from "./modules/email/email.routes.js";
 import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
+import prisma from "./lib/prisma.js";
 
 function sanitizeSecretStrings(text: string): string {
   return text
@@ -92,6 +94,7 @@ export async function createServer(customEnv?: ValidatedEnv): Promise<FastifyIns
   await app.register(fastifyCookie);
 
   app.decorate("env", env);
+  app.decorate("prisma", prisma);
 
   // HTTP Security Headers via @fastify/helmet
   await app.register(fastifyHelmet, {
@@ -197,13 +200,18 @@ export async function createServer(customEnv?: ValidatedEnv): Promise<FastifyIns
 
     // 3. Fastify HTTP Errors (e.g. 404 Route Not Found, 413 Payload Too Large)
     if (typeof error.statusCode === "number" && error.statusCode >= 400 && error.statusCode < 500) {
+      const isSensitive = /prisma|sql|table|column|database|select|insert|update|delete|where/i.test(error.message || "");
       return reply.code(error.statusCode).send({
         success: false,
-        message: error.message || "Bad Request",
+        message: isSensitive ? "Bad Request" : (error.message || "Bad Request"),
       });
     }
 
     // 4. Unexpected server errors (HTTP 500)
+    // Never expose raw backend errors, Prisma messages, SQL queries, column names, file paths, or stack traces
+    const refId = `ERR-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+
+    // Detailed diagnostic logging on server only
     if (error instanceof Error) {
       const sanitizedMsg = sanitizeSecretStrings(error.message);
       const safeError = new Error(sanitizedMsg);
@@ -214,18 +222,26 @@ export async function createServer(customEnv?: ValidatedEnv): Promise<FastifyIns
       if ((error as any).cause instanceof Error) {
         (safeError as any).cause = new Error(sanitizeSecretStrings((error as any).cause.message));
       }
-      request.log.error(safeError);
+      request.log.error(
+        { refId, err: safeError, url: request.url, method: request.method, code: (error as any).code },
+        "Internal server error occurred"
+      );
     } else {
       request.log.error(
-        { rawError: sanitizeSecretStrings(String(error)) },
+        { refId, rawError: sanitizeSecretStrings(String(error)), url: request.url, method: request.method },
         "Non-Error value rejected by server"
       );
     }
 
-    const isProd = process.env.NODE_ENV === "production";
+    const isLoginEndpoint = request.url?.startsWith("/auth/login");
+    const safeMessage = isLoginEndpoint
+      ? "We couldn't complete your sign-in right now. Please try again in a few moments. If the issue continues, contact support."
+      : "We couldn't complete your request right now. Please try again in a few moments. If the issue continues, contact support.";
+
     return reply.code(500).send({
       success: false,
-      message: isProd ? "Internal server error" : (error.message || "Internal server error"),
+      message: safeMessage,
+      refId,
     });
   });
 

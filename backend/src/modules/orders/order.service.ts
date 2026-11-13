@@ -1,5 +1,13 @@
 import prisma from "../../lib/prisma.js";
 
+export const DEFAULT_ORDER_STAGES = [
+  "Order Placed",
+  "Cutting",
+  "Stitching",
+  "Finishing",
+  "Ready for Delivery",
+] as const;
+
 export interface CreateOrderInput {
   ownerId: number;
   itemName: string;
@@ -205,13 +213,7 @@ export class OrderService {
     const balance = totalAmount; // In Advance Pay initial order creation, balance starts at totalAmount before payments are captured
     const paymentStatus = "PENDING";
 
-    const defaultStages = [
-      "Measurements",
-      "Cutting",
-      "Embroidery",
-      "Trial",
-      "Ready",
-    ];
+    const defaultStages = [...DEFAULT_ORDER_STAGES];
 
     const stagesToCreate =
       stages && stages.length > 0

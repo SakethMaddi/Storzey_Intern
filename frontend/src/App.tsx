@@ -12,7 +12,7 @@ import type { Customer, Order, OrderStage, Payment, PaginationMeta } from "./typ
 
 import { OwnerSignUpPage } from "./features/auth/components/OwnerSignUpPage";
 import { OwnerLoginPage } from "./features/auth/components/OwnerLoginPage";
-import { HeaderBar } from "./shared/components/HeaderBar";
+import { HeaderBar, type NavTab } from "./shared/components/HeaderBar";
 import { CustomerCreateCard } from "./features/customers/components/CustomerCreateCard";
 import { CustomerList } from "./features/customers/components/CustomerList";
 import { OrderCreateForm } from "./features/orders/components/OrderCreateForm";
@@ -49,7 +49,7 @@ function AdminApp({
   const [selectedOrder, setSelectedOrder] = useState<number | null>(null);
 
   // Navigation tab and archival toggles
-  const [activeTab, setActiveTab] = useState<"dashboard" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<NavTab>("dashboard");
   const [showArchivedCustomers, setShowArchivedCustomers] = useState(false);
   const [showArchivedOrders, setShowArchivedOrders] = useState(false);
 
@@ -205,11 +205,11 @@ function AdminApp({
 
   // Custom Stages State for Order Creation
   const defaultStageTemplates = [
-    "Measurements",
+    "Order Placed",
     "Cutting",
-    "Embroidery",
-    "Trial",
-    "Ready",
+    "Stitching",
+    "Finishing",
+    "Ready for Delivery",
   ];
   const [orderStages, setOrderStages] = useState<string[]>(defaultStageTemplates);
   const [newStageInput, setNewStageInput] = useState("");

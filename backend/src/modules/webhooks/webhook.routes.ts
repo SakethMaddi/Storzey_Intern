@@ -189,7 +189,12 @@ export async function webhookRoutes(app: FastifyInstance) {
 
         // Trigger immediate background dispatch after transaction committed successfully
         if (completedPaymentId) {
-          emailService.dispatchForPayment(completedPaymentId).catch(() => {});
+          emailService.dispatchForPayment(completedPaymentId).catch((err: unknown) => {
+            console.error(
+              "[EmailService] Background receipt dispatch failed:",
+              err instanceof Error ? err.message : err
+            );
+          });
         }
 
         return reply.send({

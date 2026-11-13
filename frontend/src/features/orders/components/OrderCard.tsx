@@ -520,9 +520,6 @@ export function OrderCard({
                 <div
                   key={stage.id}
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
                     padding: "8px 12px",
                     background: "#ffffff",
                     border: "1px solid #e2e8f0",
@@ -531,6 +528,7 @@ export function OrderCard({
                     fontSize: "13px",
                   }}
                 >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                   <span style={{ fontWeight: 600 }}>{stage.name}</span>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span
@@ -573,6 +571,7 @@ export function OrderCard({
                         <option value="COMPLETED">Completed</option>
                       </select>
                     )}
+                  </div>
                   </div>
                 </div>
               ))

@@ -7,17 +7,17 @@ datasource db {
 }
 
 model Customer {
-  id         Int       @id @default(autoincrement())
-  ownerId    Int
-  name       String
-  phone      String
-  email      String?
-  orders     Order[]
-  createdAt  DateTime  @default(now())
-  isArchived Boolean   @default(false)
-  archivedAt DateTime?
+  id           Int                   @id @default(autoincrement())
+  ownerId      Int
+  name         String
+  phone        String
+  email        String?
+  orders       Order[]
+  createdAt    DateTime              @default(now())
+  isArchived   Boolean               @default(false)
+  archivedAt   DateTime?
 
-  owner      Owner     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  owner        Owner                 @relation(fields: [ownerId], references: [id], onDelete: Restrict)
 
   @@unique([id, ownerId])
   @@unique([ownerId, phone])
@@ -27,30 +27,31 @@ model Customer {
 }
 
 model Order {
-  id                    Int          @id @default(autoincrement())
+  id                    Int                  @id @default(autoincrement())
   ownerId               Int
   customerId            Int
   itemName              String
   totalAmount           Int
   advance               Int
-  balance               Int          @default(0)
-  paymentStatus         String       @default("PENDING")
-  status                String       @default("ACTIVE")
-  promisedDate          DateTime?    @db.Date
+  balance               Int                  @default(0)
+  paymentStatus         String               @default("PENDING")
+  status                String               @default("ACTIVE")
+  promisedDate          DateTime?            @db.Date
   paymentLinkExpiresAt  DateTime?
-  publicToken           String       @unique @default(uuid())
-  createdAt             DateTime     @default(now())
-  isArchived            Boolean      @default(false)
+  publicToken           String               @unique @default(uuid())
+  createdAt             DateTime             @default(now())
+  isArchived            Boolean              @default(false)
   archivedAt            DateTime?
   cancelledAt           DateTime?
   cancelledBy           String?
   cancellationReason    String?
 
-  owner                 Owner        @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  customer              Customer     @relation(fields: [customerId, ownerId], references: [id, ownerId], onDelete: Restrict)
+  owner                 Owner                @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  customer              Customer             @relation(fields: [customerId, ownerId], references: [id, ownerId], onDelete: Restrict)
   payments              Payment[]
   stages                OrderStage[]
 
+  @@unique([id, ownerId])
   @@index([ownerId, createdAt(sort: Desc)])
   @@index([ownerId, customerId])
   @@index([ownerId, paymentStatus])
@@ -75,14 +76,14 @@ model Payment {
 }
 
 model OrderStage {
-  id        Int      @id @default(autoincrement())
-  name      String
-  status    String   @default("PENDING")
-  orderId   Int
-  position  Int      @default(0)
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  name        String
+  status      String   @default("PENDING")
+  orderId     Int
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
 
-  order     Order    @relation(fields: [orderId], references: [id])
+  order       Order    @relation(fields: [orderId], references: [id])
 
   @@unique([orderId, name])
   @@index([orderId])
@@ -98,17 +99,17 @@ model WebhookEvent {
 }
 
 model Owner {
-  id           Int        @id @default(autoincrement())
+  id           Int                   @id @default(autoincrement())
   name         String
-  email        String     @unique
-  phone        String?    @unique
+  email        String                @unique
+  phone        String?               @unique
   businessName String?
   password     String
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
 
-  customers    Customer[]
-  orders       Order[]
+  customers      Customer[]
+  orders         Order[]
 }
 
 model EmailOutbox {

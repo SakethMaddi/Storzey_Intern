@@ -1,5 +1,3 @@
-BEGIN;
-
 -- 1. Customer Archival
 ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "isArchived" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "archivedAt" TIMESTAMP(3);
@@ -16,5 +14,3 @@ ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "cancellationReason" TEXT;
 
 CREATE INDEX IF NOT EXISTS "Order_ownerId_status_idx" ON "Order"("ownerId", "status");
 CREATE INDEX IF NOT EXISTS "Order_ownerId_isArchived_idx" ON "Order"("ownerId", "isArchived");
-
-COMMIT;

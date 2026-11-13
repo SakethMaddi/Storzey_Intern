@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../../../config";
+import { buildRazorpayCheckoutOptions } from "../razorpay-checkout";
 
 const API_URL = API_BASE_URL;
 
@@ -64,55 +65,78 @@ export function CustomerOrderPage({ token }: { token: string }) {
         );
       }
 
-      const rzp = new window.Razorpay({
-        key: keyId,
-        amount,
-        currency,
-        name: "Advance Pay Boutique",
-        description: `${paymentType} payment for ${order.itemName}`,
-        order_id: razorpayOrderId,
-        handler: async (response: {
-          razorpay_order_id: string;
-          razorpay_payment_id: string;
-          razorpay_signature: string;
-        }) => {
-          try {
-            // 3. Authoritative backend signature verification
-            const verifyRes = await axios.post(
-              `${API_URL}/payments/verify`,
-              response
-            );
-            setSuccessMessage(
-              verifyRes.data.message || "Payment verified and recorded!"
-            );
-            await fetchOrder();
-          } catch (vErr: any) {
-            setError(
-              vErr.response?.data?.message ||
-                "Payment verification failed on backend. Please contact support."
-            );
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            payingRef.current = false;
-            setPaying(false);
-          },
-        },
-        prefill: {
-          name: order.customer?.name || "",
-        },
-        theme: {
-          color: "#2563eb",
-        },
-      });
-
-      rzp.on("payment.failed", (failedRes: any) => {
-        setError(
-          `Payment failed: ${failedRes.error?.description || "Transaction declined by gateway."}`
-        );
+      let checkoutClosedAfterResult = false;
+      const finishCheckout = () => {
         payingRef.current = false;
         setPaying(false);
+      };
+      const rzp = new window.Razorpay(
+        buildRazorpayCheckoutOptions({
+          keyId,
+          amount,
+          currency,
+          description: `${paymentType} payment for ${order.itemName}`,
+          orderId: razorpayOrderId,
+          customerName: order.customer?.name || "",
+          handler: async (response) => {
+            checkoutClosedAfterResult = true;
+            try {
+              const verifyRes = await axios.post(
+                `${API_URL}/payments/verify`,
+                response
+              );
+              if (verifyRes.data?.success !== true) {
+                setSuccessMessage("");
+                setError(
+                  verifyRes.data?.message ||
+                    "Payment is not confirmed yet. The order was not marked as paid."
+                );
+              } else {
+                setSuccessMessage(
+                  verifyRes.data.message || "Payment verified and recorded!"
+                );
+              }
+              await fetchOrder();
+            } catch (vErr: any) {
+              setSuccessMessage("");
+              setError(
+                vErr.response?.data?.message ||
+                  "Payment verification failed on backend. The order was not marked as paid."
+              );
+              await fetchOrder();
+            } finally {
+              finishCheckout();
+            }
+          },
+          onDismiss: () => {
+            if (checkoutClosedAfterResult) {
+              finishCheckout();
+              return;
+            }
+            setSuccessMessage("");
+            setError(
+              "Checkout closed. If you approved the payment in your UPI app, this order updates only after Razorpay confirms it. Closing checkout does not mark the order as paid."
+            );
+            finishCheckout();
+            void fetchOrder();
+          },
+        })
+      );
+
+      rzp.on("payment.failed", (failedRes: any) => {
+        checkoutClosedAfterResult = true;
+        const description = String(failedRes?.error?.description || "");
+        const reason = String(failedRes?.error?.reason || "");
+        const cancelled =
+          reason === "payment_cancelled" || /cancel/i.test(description);
+        setSuccessMessage("");
+        setError(
+          cancelled
+            ? "Payment cancelled. The order was not marked as paid."
+            : `Payment failed: ${description || "Transaction declined by gateway."} The order was not marked as paid.`
+        );
+        finishCheckout();
+        void fetchOrder();
       });
 
       rzp.open();
@@ -337,6 +361,9 @@ export function CustomerOrderPage({ token }: { token: string }) {
 
           {order.isGatewayConfigured ? (
             <div>
+              <p style={{ margin: "0 0 10px", fontSize: "14px", color: "#334155" }}>
+                Razorpay Checkout accepts UPI, cards and netbanking. On a phone, UPI opens Google Pay, PhonePe or Paytm. On a computer, Razorpay shows a UPI QR code. The order is marked paid only after payment confirmation.
+              </p>
               {advanceDue > 0 && (
                 <button
                   disabled={paying}

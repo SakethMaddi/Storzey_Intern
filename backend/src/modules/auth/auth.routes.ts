@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import crypto from "node:crypto";
 import {
   changePasswordSchema,
   loginSchema,
@@ -67,9 +68,11 @@ export async function authRoutes(app: FastifyInstance) {
         }
 
         if (!result.owner) {
+          const refId = `ERR-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
           return reply.code(500).send({
             success: false,
-            message: "Failed to create owner account",
+            message: "We couldn't complete your registration right now. Please try again in a few moments. If the issue continues, contact support.",
+            refId,
           });
         }
 
@@ -100,10 +103,15 @@ export async function authRoutes(app: FastifyInstance) {
           },
         });
       } catch (err: any) {
-        request.log.error(err);
+        const refId = `ERR-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+        request.log.error(
+          { refId, err, endpoint: "/auth/register" },
+          "Unexpected error during owner registration"
+        );
         return reply.code(500).send({
           success: false,
-          message: "Internal server error during registration",
+          message: "We couldn't complete your registration right now. Please try again in a few moments. If the issue continues, contact support.",
+          refId,
         });
       }
     }
@@ -126,18 +134,40 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({
           success: false,
           message: parseResult.error.issues[0]?.message || "Invalid email or password",
+          errors: parseResult.error.flatten().fieldErrors,
         });
       }
 
       const { email, password } = parseResult.data;
 
-      const { isAuthenticated, ownerId, ownerName, businessName } =
-        await authService.verifyOwnerCredentials(email, password);
+      let isAuthenticated = false;
+      let ownerId: number | undefined;
+      let ownerName = "Owner";
+      let businessName: string | null | undefined;
+
+      try {
+        const credentials = await authService.verifyOwnerCredentials(email, password);
+        isAuthenticated = credentials.isAuthenticated;
+        ownerId = credentials.ownerId;
+        ownerName = credentials.ownerName;
+        businessName = credentials.businessName;
+      } catch (err: any) {
+        const refId = `ERR-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+        request.log.error(
+          { refId, err, endpoint: "/auth/login" },
+          "Unexpected error during owner login"
+        );
+        return reply.code(500).send({
+          success: false,
+          message: "We couldn't complete your sign-in right now. Please try again in a few moments. If the issue continues, contact support.",
+          refId,
+        });
+      }
 
       if (!isAuthenticated || !ownerId) {
         return reply.code(401).send({
           success: false,
-          message: "Invalid email or password",
+          message: "Incorrect email or password. Please try again.",
         });
       }
 

@@ -13,11 +13,13 @@ import {
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { emailService } from "../email/email.service.js";
 import {
+  classifyGatewayPaymentStatus,
   completeCapturedPayment,
   SettlementError,
   toPublicPaymentVerification,
   type PaymentDb,
 } from "./payment-settlement.js";
+import { buildRazorpayOrderPayload } from "./razorpay-order.js";
 
 export async function paymentRoutes(app: FastifyInstance) {
   // GET /orders/:id/payments - Protected owner endpoint
@@ -206,7 +208,12 @@ export async function paymentRoutes(app: FastifyInstance) {
         });
 
         if (result.payment.id) {
-          emailService.dispatchForPayment(result.payment.id).catch(() => {});
+          emailService.dispatchForPayment(result.payment.id).catch((err: unknown) => {
+            console.error(
+              "[EmailService] Background receipt dispatch failed:",
+              err instanceof Error ? err.message : err
+            );
+          });
         }
 
         return reply.code(201).send({
@@ -371,15 +378,16 @@ export async function paymentRoutes(app: FastifyInstance) {
           });
         }
 
-        const razorpayOrder = await razorpay.orders.create({
-          amount: amount * 100,
-          currency: "INR",
-          receipt: `order-${orderId}-${Date.now()}`,
-          notes: {
-            orderId: String(orderId),
-            paymentType,
-          },
-        });
+        const razorpayOrder = await razorpay.orders.create(
+          buildRazorpayOrderPayload({
+            amountRupees: amount,
+            receipt: `order-${orderId}-${Date.now()}`,
+            notes: {
+              orderId: String(orderId),
+              paymentType,
+            },
+          })
+        );
 
         await prisma.payment.create({
           data: {
@@ -648,15 +656,32 @@ export async function paymentRoutes(app: FastifyInstance) {
     }
 
     const gatewayPayment = await razorpay.payments.fetch(razorpay_payment_id);
+    const gatewayStatus = classifyGatewayPaymentStatus(gatewayPayment.status);
 
     if (
       gatewayPayment.order_id !== razorpay_order_id ||
-      gatewayPayment.status !== "captured" ||
       gatewayPayment.currency !== "INR"
     ) {
       return reply.code(400).send({
         success: false,
         message: "Payment is not successfully captured",
+      });
+    }
+
+    if (gatewayStatus === "pending") {
+      return reply.code(202).send({
+        success: false,
+        pending: true,
+        message:
+          "Payment is still pending. The order is not marked paid until Razorpay confirms it.",
+      });
+    }
+
+    if (gatewayStatus !== "captured") {
+      return reply.code(400).send({
+        success: false,
+        pending: false,
+        message: "Payment was not completed. The order was not marked as paid.",
       });
     }
 
@@ -709,7 +734,12 @@ export async function paymentRoutes(app: FastifyInstance) {
       }
 
       if (result.outcome === "COMPLETED") {
-        emailService.dispatchForPayment(result.publicView.paymentId).catch(() => {});
+        emailService.dispatchForPayment(result.publicView.paymentId).catch((err: unknown) => {
+          console.error(
+            "[EmailService] Background receipt dispatch failed:",
+            err instanceof Error ? err.message : err
+          );
+        });
       }
 
       return reply.send(toPublicPaymentVerification(result.publicView));

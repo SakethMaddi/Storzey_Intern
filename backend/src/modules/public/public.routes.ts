@@ -6,6 +6,7 @@ import {
   publicTokenParamSchema,
   razorpayOrderRequestSchema,
 } from "../../lib/validation.js";
+import { buildRazorpayOrderPayload } from "../payments/razorpay-order.js";
 
 export async function publicRoutes(app: FastifyInstance) {
   // Public Health Check
@@ -243,16 +244,17 @@ export async function publicRoutes(app: FastifyInstance) {
           });
         }
 
-        const razorpayOrder = await razorpay.orders.create({
-          amount: amount * 100,
-          currency: "INR",
-          receipt: `order-${order.id}-${Date.now()}`,
-          notes: {
-            orderId: String(order.id),
-            publicToken: token,
-            paymentType,
-          },
-        });
+        const razorpayOrder = await razorpay.orders.create(
+          buildRazorpayOrderPayload({
+            amountRupees: amount,
+            receipt: `order-${order.id}-${Date.now()}`,
+            notes: {
+              orderId: String(order.id),
+              publicToken: token,
+              paymentType,
+            },
+          })
+        );
 
         await prisma.payment.create({
           data: {

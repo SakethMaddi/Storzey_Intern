@@ -10,6 +10,8 @@ export interface EnqueueEmailInput {
   data: PaymentReceiptEmailData;
 }
 
+const EMAIL_OUTBOX_MIGRATION = "20261112160000_add_customer_email_and_outbox";
+
 export interface ClaimedOutboxRecord {
   id: number;
   paymentId: number;
@@ -24,6 +26,41 @@ export interface ClaimedOutboxRecord {
   lockedBy: string | null;
   nextRetryAt: Date;
   sentAt: Date | null;
+}
+
+function databaseErrorText(error: unknown): string {
+  if (!error || typeof error !== "object") {
+    return error instanceof Error ? error.message : "";
+  }
+  const record = error as {
+    message?: unknown;
+    originalMessage?: unknown;
+    code?: unknown;
+    originalCode?: unknown;
+  };
+  return [record.code, record.originalCode, record.message, record.originalMessage]
+    .filter((part) => typeof part === "string")
+    .join(" ");
+}
+
+export function isMissingEmailOutboxError(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  const visit = (value: unknown): boolean => {
+    if (!value || typeof value !== "object" || seen.has(value)) return false;
+    seen.add(value);
+    const record = value as Record<string, unknown>;
+    if (record.code === "42P01" || record.originalCode === "42P01" || record.code === "P2021") {
+      return true;
+    }
+    const text = databaseErrorText(value);
+    if (/emailoutbox/i.test(text) && /does not exist/i.test(text)) return true;
+    return ["cause", "meta", "driverAdapterError"].some((key) => visit(record[key]));
+  };
+  return visit(error);
+}
+
+export function emailOutboxSchemaMessage(): string {
+  return `EmailOutbox table does not exist (PostgreSQL 42P01). Apply migration ${EMAIL_OUTBOX_MIGRATION} before receipt delivery can run.`;
 }
 
 export class EmailService {
@@ -196,9 +233,15 @@ export class EmailService {
           where: { id: { in: candidateIds } },
         }) as unknown as ClaimedOutboxRecord[];
       });
-    } catch (err: any) {
-      console.error("[EmailService] Failed to claim outbox batch atomically:", err.message);
-      return [];
+    } catch (err: unknown) {
+      if (isMissingEmailOutboxError(err)) {
+        const schemaError = new Error(emailOutboxSchemaMessage());
+        schemaError.name = "EmailOutboxSchemaError";
+        throw schemaError;
+      }
+      const message = err instanceof Error ? err.message : "Unknown outbox claim error";
+      console.error("[EmailService] Failed to claim outbox batch atomically:", message);
+      throw err instanceof Error ? err : new Error(message);
     }
   }
 
@@ -376,18 +419,36 @@ export class EmailService {
   /**
    * Process pending retries in the outbox using atomic batch claiming
    */
-  async processPendingOutbox(limit: number = 20): Promise<{ processed: number; sent: number; failed: number }> {
-    const claimedItems = await this.claimOutboxBatch(limit);
+  async processPendingOutbox(limit: number = 20): Promise<{
+    processed: number;
+    sent: number;
+    failed: number;
+    error?: string;
+  }> {
+    let claimedItems: ClaimedOutboxRecord[];
+    try {
+      claimedItems = await this.claimOutboxBatch(limit);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown outbox processing error";
+      console.error("[EmailService Worker] Outbox cycle failed:", message);
+      return { processed: 0, sent: 0, failed: 0, error: message };
+    }
 
     let sent = 0;
     let failed = 0;
 
     for (const item of claimedItems) {
-      const res = await this.processOutboxItem(item.id);
-      if (res.success) {
-        sent++;
-      } else {
+      try {
+        const res = await this.processOutboxItem(item.id);
+        if (res.success) {
+          sent++;
+        } else {
+          failed++;
+        }
+      } catch (err: unknown) {
         failed++;
+        const message = err instanceof Error ? err.message : "Unknown outbox item error";
+        console.error(`[EmailService Worker] Outbox item ${item.id} failed:`, message);
       }
     }
 
@@ -446,7 +507,10 @@ export class EmailService {
     });
 
     // Trigger immediate background delivery attempt
-    this.processOutboxItem(outboxId).catch(() => {});
+    this.processOutboxItem(outboxId).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : "Unknown outbox retry error";
+      console.error("[EmailService] Immediate retry failed:", message);
+    });
 
     return {
       status: "RETRY_SCHEDULED",
@@ -464,8 +528,9 @@ export class EmailService {
     }
 
     // Run immediate cycle for pending recovery
-    this.processPendingOutbox().catch((err) => {
-      console.error("[EmailService Worker] Startup recovery error:", err);
+    this.processPendingOutbox().catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : "Unknown startup recovery error";
+      console.error("[EmailService Worker] Startup recovery error:", message);
     });
 
     this.workerTimer = setInterval(() => {
@@ -474,8 +539,9 @@ export class EmailService {
       }
       this.isProcessingOutbox = true;
       this.processPendingOutbox()
-        .catch((err) => {
-          console.error("[EmailService Worker] Periodic processing error:", err);
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : "Unknown periodic processing error";
+          console.error("[EmailService Worker] Periodic processing error:", message);
         })
         .finally(() => {
           this.isProcessingOutbox = false;

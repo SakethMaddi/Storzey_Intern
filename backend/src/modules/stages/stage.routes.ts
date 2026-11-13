@@ -6,7 +6,6 @@ import {
   orderStageCreateSchema,
   stageUpdateSchema,
 } from "../../lib/validation.js";
-
 export async function stageRoutes(app: FastifyInstance) {
   // GET /orders/:id/stages - Protected owner endpoint
   app.get(
@@ -167,7 +166,6 @@ export async function stageRoutes(app: FastifyInstance) {
       const stageId = paramResult.data.id;
       const { status } = bodyResult.data;
 
-      // Verify stage belongs to an order owned by this owner
       const existingStage = await prisma.orderStage.findFirst({
         where: {
           id: stageId,

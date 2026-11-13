@@ -414,4 +414,139 @@ describe("payment verification privacy and concurrency", () => {
     expect(h.state.payments[0]?.status).toBe("PENDING");
     expect(h.state.orders.find((item) => item.id === 10)?.balance).toBe(100);
   });
+
+  it("records a captured UPI payment through the same verification path", async () => {
+    h.fetchMock.mockResolvedValue({
+      id: "pay_upi_1",
+      order_id: "order_test_1",
+      status: "captured",
+      currency: "INR",
+      amount: 40000,
+      method: "upi",
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/payments/verify",
+      payload: {
+        razorpay_order_id: "order_test_1",
+        razorpay_payment_id: "pay_upi_1",
+        razorpay_signature: paymentSignature("order_test_1", "pay_upi_1"),
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.status).toBe("COMPLETED");
+    expect(h.state.decrements).toBe(1);
+    expect(h.state.payments[0]?.status).toBe("COMPLETED");
+    expect(h.state.orders.find((order) => order.id === 10)?.balance).toBe(600);
+  });
+
+  it("does not mark a pending or failed UPI callback as paid", async () => {
+    for (const status of ["created", "authorized", "pending", "failed"]) {
+      resetState();
+      h.fetchMock.mockResolvedValue({
+        id: "pay_upi_open",
+        order_id: "order_test_1",
+        status,
+        currency: "INR",
+        amount: 40000,
+        method: "upi",
+      });
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/payments/verify",
+        payload: {
+          razorpay_order_id: "order_test_1",
+          razorpay_payment_id: "pay_upi_open",
+          razorpay_signature: paymentSignature("order_test_1", "pay_upi_open"),
+        },
+      });
+
+      expect(res.json().success).toBe(false);
+      expect(res.statusCode).toBe(status === "failed" ? 400 : 202);
+      expect(h.state.decrements).toBe(0);
+      expect(h.state.payments[0]?.status).toBe("PENDING");
+      expect(h.state.orders.find((order) => order.id === 10)?.balance).toBe(1000);
+    }
+  });
+
+  it("keeps an authorized UPI webhook pending and marks a failed UPI webhook without deducting", async () => {
+    const authorized = JSON.stringify({
+      event: "payment.authorized",
+      payload: {
+        payment: {
+          entity: {
+            id: "pay_upi_auth",
+            order_id: "order_test_1",
+            status: "authorized",
+            amount: 40000,
+            currency: "INR",
+            method: "upi",
+          },
+        },
+      },
+    });
+    const authorizedRes = await app.inject({
+      method: "POST",
+      url: "/webhooks/razorpay",
+      headers: {
+        "content-type": "application/json",
+        "x-razorpay-signature": webhookSignature(authorized),
+        "x-razorpay-event-id": "evt_upi_authorized",
+      },
+      payload: authorized,
+    });
+
+    expect(authorizedRes.statusCode).toBe(200);
+    expect(h.state.decrements).toBe(0);
+    expect(h.state.payments[0]?.status).toBe("PENDING");
+
+    const failed = JSON.stringify({
+      event: "payment.failed",
+      payload: {
+        payment: {
+          entity: {
+            id: "pay_upi_failed",
+            order_id: "order_test_1",
+            status: "failed",
+            amount: 40000,
+            currency: "INR",
+            method: "upi",
+            error_reason: "payment_cancelled",
+          },
+        },
+      },
+    });
+    const failedRes = await app.inject({
+      method: "POST",
+      url: "/webhooks/razorpay",
+      headers: {
+        "content-type": "application/json",
+        "x-razorpay-signature": webhookSignature(failed),
+        "x-razorpay-event-id": "evt_upi_failed",
+      },
+      payload: failed,
+    });
+
+    expect(failedRes.statusCode).toBe(200);
+    expect(h.state.decrements).toBe(0);
+    expect(h.state.payments[0]?.status).toBe("FAILED");
+    expect(h.state.orders.find((order) => order.id === 10)?.balance).toBe(1000);
+
+    const duplicate = await app.inject({
+      method: "POST",
+      url: "/webhooks/razorpay",
+      headers: {
+        "content-type": "application/json",
+        "x-razorpay-signature": webhookSignature(failed),
+        "x-razorpay-event-id": "evt_upi_failed",
+      },
+      payload: failed,
+    });
+    expect(duplicate.statusCode).toBe(200);
+    expect(duplicate.json().message).toContain("already processed");
+    expect(h.state.decrements).toBe(0);
+  });
 });

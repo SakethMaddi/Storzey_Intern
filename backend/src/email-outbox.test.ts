@@ -309,6 +309,38 @@ describe("Payment Email Notifications & Outbox Pattern", () => {
       });
     });
 
+    it("keeps the worker alive and reports a missing EmailOutbox table", async () => {
+      const missingTable = Object.assign(new Error('relation "EmailOutbox" does not exist'), {
+        code: "P2021",
+        meta: {
+          driverAdapterError: {
+            cause: {
+              originalCode: "42P01",
+              originalMessage: 'relation "EmailOutbox" does not exist',
+            },
+          },
+        },
+      });
+      mockPrisma.$queryRaw = vi.fn();
+      mockPrisma.$transaction = vi.fn().mockRejectedValue(missingTable);
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const summary = await emailService.processPendingOutbox(10);
+
+      expect(summary).toEqual({
+        processed: 0,
+        sent: 0,
+        failed: 0,
+        error: expect.stringContaining("PostgreSQL 42P01"),
+      });
+      expect(summary.error).toContain("20261112160000_add_customer_email_and_outbox");
+      expect(errorSpy).toHaveBeenCalledWith(
+        "[EmailService Worker] Outbox cycle failed:",
+        expect.stringContaining("EmailOutbox table does not exist")
+      );
+      errorSpy.mockRestore();
+    });
+
     it("sanitizes passwords or connection strings in lastError", async () => {
       const mockOutboxItem = {
         id: 4,

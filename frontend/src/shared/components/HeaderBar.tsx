@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 
+export type NavTab = "dashboard" | "settings";
+
 export interface HeaderBarProps {
   ownerEmail: string;
   ownerName?: string;
   businessName?: string | null;
   onLogout: () => void;
-  activeTab?: "dashboard" | "settings";
-  onTabChange?: (tab: "dashboard" | "settings") => void;
+  activeTab?: NavTab;
+  onTabChange?: (tab: NavTab) => void;
 }
 
 export function HeaderBar({
@@ -140,7 +142,7 @@ export function HeaderBar({
 
             {/* Navigation options */}
             <div className="dropdown-nav-section">
-              {/* 2. Dashboard */}
+              {/* Dashboard */}
               <button
                 type="button"
                 role="menuitem"
@@ -169,7 +171,7 @@ export function HeaderBar({
                 <span>Dashboard</span>
               </button>
 
-              {/* 3. Business Profile & Settings */}
+              {/* Business Profile & Settings */}
               <button
                 type="button"
                 role="menuitem"

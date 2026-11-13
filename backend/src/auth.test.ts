@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import fastifyJwt from "@fastify/jwt";
@@ -7,6 +7,7 @@ import bcrypt from "bcrypt";
 import { loginSchema, ownerRegisterSchema } from "./lib/validation.js";
 import { validateJwtSecret } from "./lib/jwt.js";
 import { authService } from "./modules/auth/auth.service.js";
+import prisma from "./lib/prisma.js";
 
 describe("Owner Authentication Endpoints & Middleware", () => {
   let app: FastifyInstance;
@@ -116,7 +117,7 @@ describe("Owner Authentication Endpoints & Middleware", () => {
       if (!isValid) {
         return reply.code(401).send({
           success: false,
-          message: "Invalid email or password",
+          message: "Incorrect email or password. Please try again.",
         });
       }
 
@@ -268,7 +269,7 @@ describe("Owner Authentication Endpoints & Middleware", () => {
     });
     expect(res.statusCode).toBe(401);
     expect(res.json().success).toBe(false);
-    expect(res.json().message).toBe("Invalid email or password");
+    expect(res.json().message).toBe("Incorrect email or password. Please try again.");
   });
 
   it("7. Allows access to protected owner route when cookie is provided", async () => {
@@ -360,23 +361,27 @@ describe("Owner Authentication Endpoints & Middleware", () => {
 
     it("16. Rejects login when no DB owner exists and environment OWNER_PASSWORD is empty or missing", async () => {
       const originalEnvPass = process.env.OWNER_PASSWORD;
+      const spy = vi.spyOn(prisma.owner, "findUnique").mockResolvedValue(null as any);
       try {
         delete process.env.OWNER_PASSWORD;
         // Verify against non-existent DB owner
         const check = await authService.verifyOwnerCredentials("nonexistent@advancepay.com", "OwnerSecurePassword2026!");
         expect(check.isAuthenticated).toBe(false);
       } finally {
+        spy.mockRestore();
         if (originalEnvPass) process.env.OWNER_PASSWORD = originalEnvPass;
       }
     });
 
     it("17. Rejects login if attempting default 'OwnerSecurePassword2026!' when unset", async () => {
       const originalEnvPass = process.env.OWNER_PASSWORD;
+      const spy = vi.spyOn(prisma.owner, "findUnique").mockResolvedValue(null as any);
       try {
         delete process.env.OWNER_PASSWORD;
         const check = await authService.verifyOwnerCredentials("owner@advancepay.com", "OwnerSecurePassword2026!");
         expect(check.isAuthenticated).toBe(false);
       } finally {
+        spy.mockRestore();
         if (originalEnvPass) process.env.OWNER_PASSWORD = originalEnvPass;
       }
     });

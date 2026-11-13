@@ -58,5 +58,3 @@ export interface PaginationMeta {
   hasNextPage: boolean;
   hasPreviousPage: boolean;
 }
-
-
