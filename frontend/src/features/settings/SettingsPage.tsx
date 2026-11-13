@@ -19,6 +19,8 @@ export interface SettingsPageProps {
   }) => void;
 }
 
+type SettingsTab = "business" | "owner" | "contact" | "security";
+
 export function SettingsPage({
   ownerEmail,
   ownerName,
@@ -27,7 +29,9 @@ export function SettingsPage({
   onLogout,
   onProfileUpdated,
 }: SettingsPageProps) {
-  // --- Business Profile State ---
+  const [activeTab, setActiveTab] = useState<SettingsTab>("business");
+
+  // --- Profile State ---
   const [profileName, setProfileName] = useState(ownerName);
   const [profilePhone, setProfilePhone] = useState(ownerPhone ?? "");
   const [profileBusiness, setProfileBusiness] = useState(businessName ?? "");
@@ -35,7 +39,7 @@ export function SettingsPage({
   const [profileSuccess, setProfileSuccess] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // --- Change Password State ---
+  // --- Password State ---
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
@@ -65,7 +69,7 @@ export function SettingsPage({
       }
     }
 
-    // Build only the changed fields
+    // Build only changed fields
     const payload: { name?: string; phone?: string; businessName?: string } = {};
     if (trimmedName && trimmedName !== ownerName) payload.name = trimmedName;
     if (trimmedPhone !== (ownerPhone ?? "")) {
@@ -76,7 +80,7 @@ export function SettingsPage({
     }
 
     if (Object.keys(payload).length === 0) {
-      setProfileError("No changes to save.");
+      setProfileError("No changes detected to save.");
       return;
     }
 
@@ -84,21 +88,28 @@ export function SettingsPage({
     try {
       const res = await axios.patch(`${API_BASE}/auth/profile`, payload);
       const updated = res.data?.data;
-      setProfileSuccess("Profile updated successfully!");
+      setProfileSuccess("Settings updated successfully!");
       onProfileUpdated({
         name: updated?.name ?? trimmedName,
         phone: updated?.phone ?? (trimmedPhone || null),
         businessName: updated?.businessName ?? (trimmedBusiness || null),
       });
-      setTimeout(() => setProfileSuccess(""), 3000);
+      setTimeout(() => setProfileSuccess(""), 3500);
     } catch (err: unknown) {
       const errObj = err as { response?: { data?: { message?: string } } };
       const msg =
-        errObj.response?.data?.message || "Failed to update profile. Please try again.";
+        errObj.response?.data?.message || "Failed to update settings. Please try again.";
       setProfileError(msg);
     } finally {
       setSavingProfile(false);
     }
+  };
+
+  const handleResetProfile = () => {
+    setProfileName(ownerName);
+    setProfilePhone(ownerPhone ?? "");
+    setProfileBusiness(businessName ?? "");
+    setProfileError("");
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -126,17 +137,17 @@ export function SettingsPage({
         newPassword,
         confirmNewPassword,
       });
-      setPasswordSuccess("Password changed. Please log in again.");
+      setPasswordSuccess("Password changed successfully. Redirecting to login...");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmNewPassword("");
       setTimeout(() => {
         onLogout();
-      }, 2000);
+      }, 1800);
     } catch (err: unknown) {
       const errObj = err as { response?: { data?: { message?: string } } };
       const msg =
-        errObj.response?.data?.message || "Failed to change password. Please try again.";
+        errObj.response?.data?.message || "Failed to change password. Please check your current password.";
       setPasswordError(msg);
     } finally {
       setSavingPassword(false);
@@ -144,206 +155,286 @@ export function SettingsPage({
   };
 
   return (
-    <div className="settings-container">
-      {/* Page Header */}
-      <div className="settings-page-header">
+    <section className="boutique-section" aria-label="Settings">
+      {/* ── 1. HEADER ── */}
+      <div className="section-header-row">
         <div>
-          <h2>Account & Business Settings</h2>
-          <p>Manage your boutique profile information and secure access credentials.</p>
+          <h1 className="section-title">Settings & Profile</h1>
+          <p className="section-subtitle">
+            Configure your boutique profile, owner credentials, and account security.
+          </p>
         </div>
       </div>
 
-      <div className="settings-grid">
-        {/* ---- Section 1: Business Profile ---- */}
-        <section className="settings-card" aria-label="Business Profile Settings">
-          <div className="settings-card-header">
-            <div className="settings-header-title">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-              <h3>Business Profile</h3>
-            </div>
-            <span className="settings-section-badge">Boutique Info</span>
-          </div>
+      {/* ── 2. TABS NAVIGATION ── */}
+      <div className="settings-tabs-row" role="tablist" aria-label="Settings navigation">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "business"}
+          className={`settings-tab-btn ${activeTab === "business" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("business")}
+        >
+          <span className="tab-icon">🏪</span>
+          <span>Business Profile</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "owner"}
+          className={`settings-tab-btn ${activeTab === "owner" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("owner")}
+        >
+          <span className="tab-icon">👤</span>
+          <span>Owner Information</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "contact"}
+          className={`settings-tab-btn ${activeTab === "contact" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("contact")}
+        >
+          <span className="tab-icon">📞</span>
+          <span>Contact Details</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "security"}
+          className={`settings-tab-btn ${activeTab === "security" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("security")}
+        >
+          <span className="tab-icon">🔒</span>
+          <span>Account & Security</span>
+        </button>
+      </div>
 
-          <form onSubmit={handleSaveProfile} noValidate className="settings-form">
-            <div className="settings-form-field">
-              <label htmlFor="settings-owner-name">Owner Name</label>
-              <input
-                id="settings-owner-name"
-                type="text"
-                placeholder="Your full name"
-                value={profileName}
-                onChange={(e) => setProfileName(capitalizeFirstLetter(e.target.value))}
-                onBlur={() => setProfileName((prev) => capitalizeFirstLetter(prev.trim()))}
-                disabled={savingProfile}
-              />
+      {/* ── 3. TAB PANELS ── */}
+      <div className="settings-panel-container">
+        {/* Tab 1: Business Profile */}
+        {activeTab === "business" && (
+          <form onSubmit={handleSaveProfile} noValidate className="settings-card-form">
+            <div className="panel-header">
+              <h3>Boutique Identity</h3>
+              <p>This brand name appears on invoices, receipts, and customer tracking pages.</p>
             </div>
 
-            <div className="settings-form-field">
-              <label htmlFor="settings-business-name">Business / Boutique Name</label>
+            {profileSuccess && <div className="inline-alert alert-success">{profileSuccess}</div>}
+            {profileError && <div className="inline-alert alert-error">{profileError}</div>}
+
+            <div className="field-group">
+              <label htmlFor="settings-business-name" className="field-label">
+                Business / Boutique Name
+              </label>
               <input
                 id="settings-business-name"
                 type="text"
-                placeholder="Shop or brand name"
+                placeholder="e.g. Saffron Bridal Studio, Royal Tailors"
                 value={profileBusiness}
                 onChange={(e) => setProfileBusiness(capitalizeFirstLetter(e.target.value))}
                 onBlur={() => setProfileBusiness((prev) => capitalizeFirstLetter(prev.trim()))}
                 disabled={savingProfile}
+                className="input-text"
               />
-              <span className="settings-field-hint">
-                Shown to your customers on the public tracking portal and order receipts.
-              </span>
+              <span className="field-hint">Displayed in customer headers and printable documents.</span>
             </div>
 
-            <div className="settings-form-field">
-              <label htmlFor="settings-phone">Contact Phone Number</label>
+            <div className="settings-actions-footer">
+              <button type="submit" disabled={savingProfile} className="btn-primary">
+                {savingProfile ? "Saving..." : "Save Changes"}
+              </button>
+              <button
+                type="button"
+                disabled={savingProfile}
+                onClick={handleResetProfile}
+                className="btn-ghost"
+              >
+                Reset
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Tab 2: Owner Information */}
+        {activeTab === "owner" && (
+          <form onSubmit={handleSaveProfile} noValidate className="settings-card-form">
+            <div className="panel-header">
+              <h3>Owner Information</h3>
+              <p>Primary account holder name and boutique administrator identity.</p>
+            </div>
+
+            {profileSuccess && <div className="inline-alert alert-success">{profileSuccess}</div>}
+            {profileError && <div className="inline-alert alert-error">{profileError}</div>}
+
+            <div className="field-group">
+              <label htmlFor="settings-owner-name" className="field-label">
+                Owner Full Name
+              </label>
               <input
-                id="settings-phone"
+                id="settings-owner-name"
+                type="text"
+                placeholder="e.g. Anusha Rao"
+                value={profileName}
+                onChange={(e) => setProfileName(capitalizeFirstLetter(e.target.value))}
+                onBlur={() => setProfileName((prev) => capitalizeFirstLetter(prev.trim()))}
+                disabled={savingProfile}
+                className="input-text"
+              />
+              <span className="field-hint">Appears in your profile badge and signature.</span>
+            </div>
+
+            <div className="settings-actions-footer">
+              <button type="submit" disabled={savingProfile} className="btn-primary">
+                {savingProfile ? "Saving..." : "Save Changes"}
+              </button>
+              <button
+                type="button"
+                disabled={savingProfile}
+                onClick={handleResetProfile}
+                className="btn-ghost"
+              >
+                Reset
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Tab 3: Contact Details */}
+        {activeTab === "contact" && (
+          <form onSubmit={handleSaveProfile} noValidate className="settings-card-form">
+            <div className="panel-header">
+              <h3>Contact Details</h3>
+              <p>Manage store communication channels and verify your registered email address.</p>
+            </div>
+
+            {profileSuccess && <div className="inline-alert alert-success">{profileSuccess}</div>}
+            {profileError && <div className="inline-alert alert-error">{profileError}</div>}
+
+            <div className="field-group">
+              <label htmlFor="settings-owner-phone" className="field-label">
+                Owner Mobile Number
+              </label>
+              <input
+                id="settings-owner-phone"
                 type="tel"
-                inputMode="numeric"
+                placeholder="10-digit Indian phone (e.g. 9876543210)"
                 maxLength={10}
-                placeholder="10-digit Indian mobile number"
                 value={profilePhone}
                 onChange={(e) => setProfilePhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                 disabled={savingProfile}
+                className="input-text"
               />
+              <span className="field-hint">For owner account notifications and verification.</span>
             </div>
 
-            <div className="settings-form-field">
-              <label htmlFor="settings-email">Email Address</label>
+            <div className="field-group">
+              <label htmlFor="settings-owner-email" className="field-label">
+                Registered Login Email <span className="badge-readonly">Non-editable</span>
+              </label>
               <input
-                id="settings-email"
+                id="settings-owner-email"
                 type="email"
                 value={ownerEmail}
                 readOnly
-                className="input-readonly"
+                disabled
+                className="input-text is-readonly"
               />
-              <span className="settings-field-hint">
-                Email address is used for primary authentication and cannot be changed.
-              </span>
+              <span className="field-hint">Your login email is securely locked to your account.</span>
             </div>
 
-            {profileError && (
-              <div className="api-error-banner" role="alert">
-                {profileError}
-              </div>
-            )}
-            {profileSuccess && (
-              <div className="success-banner" role="status">
-                {profileSuccess}
-              </div>
-            )}
-
-            <div className="settings-form-actions">
+            <div className="settings-actions-footer">
+              <button type="submit" disabled={savingProfile} className="btn-primary">
+                {savingProfile ? "Saving..." : "Save Changes"}
+              </button>
               <button
-                type="submit"
+                type="button"
                 disabled={savingProfile}
-                className="orders-btn orders-btn-primary"
+                onClick={handleResetProfile}
+                className="btn-ghost"
               >
-                {savingProfile ? "Saving Profile..." : "Save Profile"}
+                Reset
               </button>
             </div>
           </form>
-        </section>
+        )}
 
-        {/* ---- Section 2: Change Password ---- */}
-        <section className="settings-card" aria-label="Security and Password Settings">
-          <div className="settings-card-header">
-            <div className="settings-header-title">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-              <h3>Security & Password</h3>
+        {/* Tab 4: Account & Security */}
+        {activeTab === "security" && (
+          <form onSubmit={handleChangePassword} noValidate className="settings-card-form">
+            <div className="panel-header">
+              <h3>Account & Password Security</h3>
+              <p>Update your master login password to protect your store ledger and customer data.</p>
             </div>
-            <span className="settings-section-badge">Authentication</span>
-          </div>
 
-          <form onSubmit={handleChangePassword} noValidate className="settings-form">
-            <div className="settings-form-field">
-              <label htmlFor="settings-current-password">Current Password</label>
+            {passwordSuccess && <div className="inline-alert alert-success">{passwordSuccess}</div>}
+            {passwordError && <div className="inline-alert alert-error">{passwordError}</div>}
+
+            <div className="field-group">
+              <label htmlFor="settings-current-password" className="field-label">
+                Current Password <span className="req-star">*</span>
+              </label>
               <PasswordInput
                 id="settings-current-password"
-                placeholder="Enter your current password"
+                placeholder="Enter existing password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 disabled={savingPassword}
-                autoComplete="current-password"
+                required
               />
             </div>
 
-            <div className="settings-form-field">
-              <label htmlFor="settings-new-password">New Password</label>
-              <PasswordInput
-                id="settings-new-password"
-                placeholder="At least 8 characters"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                disabled={savingPassword}
-                autoComplete="new-password"
-              />
-              <span className="settings-field-hint">
-                Must be at least 8 characters long.
-              </span>
-            </div>
-
-            <div className="settings-form-field">
-              <label htmlFor="settings-confirm-password">Confirm New Password</label>
-              <PasswordInput
-                id="settings-confirm-password"
-                placeholder="Repeat new password"
-                value={confirmNewPassword}
-                onChange={(e) => setConfirmNewPassword(e.target.value)}
-                disabled={savingPassword}
-                autoComplete="new-password"
-              />
-            </div>
-
-            {passwordError && (
-              <div className="api-error-banner" role="alert">
-                {passwordError}
+            <div className="form-grid-two">
+              <div className="field-group">
+                <label htmlFor="settings-new-password" className="field-label">
+                  New Password <span className="req-star">*</span>
+                </label>
+                <PasswordInput
+                  id="settings-new-password"
+                  placeholder="Min 8 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={savingPassword}
+                  required
+                />
               </div>
-            )}
-            {passwordSuccess && (
-              <div className="success-banner" role="status">
-                {passwordSuccess}
-              </div>
-            )}
 
-            <div className="settings-form-actions">
-              <button
-                type="submit"
-                disabled={savingPassword}
-                className="orders-btn orders-btn-primary"
-              >
+              <div className="field-group">
+                <label htmlFor="settings-confirm-password" className="field-label">
+                  Confirm New Password <span className="req-star">*</span>
+                </label>
+                <PasswordInput
+                  id="settings-confirm-password"
+                  placeholder="Re-type new password"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  disabled={savingPassword}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="settings-actions-footer">
+              <button type="submit" disabled={savingPassword} className="btn-primary">
                 {savingPassword ? "Updating Password..." : "Change Password"}
+              </button>
+              <button
+                type="button"
+                disabled={savingPassword}
+                onClick={() => {
+                  setCurrentPassword("");
+                  setNewPassword("");
+                  setConfirmNewPassword("");
+                  setPasswordError("");
+                }}
+                className="btn-ghost"
+              >
+                Clear
               </button>
             </div>
           </form>
-        </section>
+        )}
       </div>
-    </div>
+    </section>
   );
 }

@@ -84,6 +84,7 @@ export function RecentOrdersSection({
               <th style={{ padding: "10px 12px", textAlign: "left", color: "#475569", fontWeight: 600 }}>Item</th>
               <th style={{ padding: "10px 12px", textAlign: "left", color: "#475569", fontWeight: 600 }}>Customer</th>
               <th style={{ padding: "10px 12px", textAlign: "right", color: "#475569", fontWeight: 600 }}>Total</th>
+              <th style={{ padding: "10px 12px", textAlign: "right", color: "#475569", fontWeight: 600 }}>Paid</th>
               <th style={{ padding: "10px 12px", textAlign: "right", color: "#475569", fontWeight: 600 }}>Balance</th>
               <th style={{ padding: "10px 12px", textAlign: "center", color: "#475569", fontWeight: 600 }}>Status</th>
               {onViewOrderDetails && (
@@ -98,6 +99,9 @@ export function RecentOrdersSection({
                 <td style={{ padding: "12px", fontWeight: 600, color: "#1e293b" }}>{o.itemName}</td>
                 <td style={{ padding: "12px", color: "#334155" }}>{o.customer?.name ?? "—"}</td>
                 <td style={{ padding: "12px", textAlign: "right", fontWeight: 600 }}>{inr(o.totalAmount)}</td>
+                <td style={{ padding: "12px", textAlign: "right", color: "#166534", fontWeight: 600 }}>
+                  {inr(Math.max(0, o.totalAmount - o.balance))}
+                </td>
                 <td style={{ padding: "12px", textAlign: "right", color: o.balance > 0 ? "#b91c1c" : "#166534", fontWeight: 600 }}>
                   {inr(o.balance)}
                 </td>
@@ -158,6 +162,12 @@ export function RecentOrdersSection({
               <div>
                 <span style={{ color: "#64748b" }}>Total: </span>
                 <span style={{ fontWeight: 600 }}>{inr(o.totalAmount)}</span>
+              </div>
+              <div>
+                <span style={{ color: "#64748b" }}>Paid: </span>
+                <span style={{ fontWeight: 600, color: "#166534" }}>
+                  {inr(Math.max(0, o.totalAmount - o.balance))}
+                </span>
               </div>
               <div>
                 <span style={{ color: "#64748b" }}>Balance: </span>

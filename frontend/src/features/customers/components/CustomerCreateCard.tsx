@@ -49,7 +49,9 @@ export function CustomerCreateCard({
       </div>
 
       <form className="customers-form" onSubmit={onSubmit} noValidate>
-        <div className="customers-form-grid">
+        <section className="customers-form-section">
+          <h4>Basic information</h4>
+          <div className="customers-form-grid">
           <label className="customers-field">
             <span>Customer name</span>
             <input
@@ -96,7 +98,12 @@ export function CustomerCreateCard({
               </div>
             )}
           </label>
+          </div>
+        </section>
 
+        <section className="customers-form-section">
+          <h4>Additional information</h4>
+          <p className="wizard-help">Email is optional. Payment receipts are sent here when it is saved.</p>
           <label className="customers-field">
             <span>Email address</span>
             <input
@@ -114,7 +121,15 @@ export function CustomerCreateCard({
               </div>
             )}
           </label>
-        </div>
+        </section>
+
+        {(name.trim() || phone.trim()) && (
+          <p className="customers-review-line" role="status">
+            Ready to save {name.trim() || "this customer"}
+            {phone.trim() ? ` · ${phone.trim()}` : ""}
+            {email.trim() ? ` · ${email.trim()}` : ""}
+          </p>
+        )}
 
         {apiError && (
           <div className="api-error-banner" role="alert">

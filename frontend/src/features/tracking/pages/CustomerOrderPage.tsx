@@ -10,6 +10,14 @@ import {
   formatOrderDate,
   getOrderProductionStatus,
 } from "../../orders/order-utils";
+import {
+  buildInvoiceHtml,
+  buildReceiptHtml,
+  openPrintableDocument,
+  trackingShareMessage,
+  whatsAppShareUrl,
+  type DocumentPayment,
+} from "../../documents/order-documents";
 import type { Order, OrderStage, Payment } from "../../../types";
 
 const API_URL = API_BASE_URL;
@@ -57,21 +65,51 @@ export function CustomerOrderPage({ token }: { token: string }) {
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [documentNotice, setDocumentNotice] = useState("");
   const [now] = useState(() => Date.now());
   const payingRef = useRef(false);
+
+  const refreshTimers = useRef<number[]>([]);
 
   const fetchOrder = useCallback(async () => {
     try {
       const response = await axios.get(
         `${API_URL}/api/public/orders/${token}`
       );
-      setOrder(response.data.data);
+      const next = response.data.data as PublicCustomerOrder;
+      setOrder(next);
+      const collected = (next.payments || [])
+        .filter((payment) => payment.status === "COMPLETED" || payment.status === "CAPTURED")
+        .reduce((sum, payment) => sum + (payment.amount || 0), 0);
+      const due = typeof next.outstandingBalance === "number"
+        ? next.outstandingBalance
+        : Math.max(0, (next.totalAmount || 0) - collected);
+      if (next.paymentStatus === "PAID" || due <= 0) {
+        setError("");
+      }
     } catch {
-      setError("Order not found or tracking link has expired.");
+      setError((current) =>
+        current || "Couldn't refresh this order. It was not marked as paid from this page."
+      );
     } finally {
       setLoading(false);
     }
   }, [token]);
+
+  const refreshAfterCheckout = () => {
+    refreshTimers.current.forEach((id) => window.clearTimeout(id));
+    void fetchOrder();
+    refreshTimers.current = [
+      window.setTimeout(() => void fetchOrder(), 4000),
+      window.setTimeout(() => void fetchOrder(), 12000),
+    ];
+  };
+
+  useEffect(() => {
+    return () => {
+      refreshTimers.current.forEach((id) => window.clearTimeout(id));
+    };
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -162,7 +200,7 @@ export function CustomerOrderPage({ token }: { token: string }) {
                   verifyRes.data.message || "Payment verified and recorded successfully!"
                 );
               }
-              await fetchOrder();
+              refreshAfterCheckout();
             } catch (vErr: unknown) {
               const vErrObj = vErr as { response?: { data?: { message?: string } } };
               setSuccessMessage("");
@@ -170,7 +208,7 @@ export function CustomerOrderPage({ token }: { token: string }) {
                 vErrObj.response?.data?.message ||
                   "Payment verification failed on backend. The order was not marked as paid."
               );
-              await fetchOrder();
+              refreshAfterCheckout();
             } finally {
               finishCheckout();
             }
@@ -185,7 +223,7 @@ export function CustomerOrderPage({ token }: { token: string }) {
               "Checkout closed. If you approved the payment in your UPI app, this order updates only after Razorpay confirms it. Closing checkout does not mark the order as paid."
             );
             finishCheckout();
-            void fetchOrder();
+            refreshAfterCheckout();
           },
         })
       );
@@ -203,7 +241,7 @@ export function CustomerOrderPage({ token }: { token: string }) {
             : `Payment failed: ${description || "Transaction declined by gateway."} The order was not marked as paid.`
         );
         finishCheckout();
-        void fetchOrder();
+        refreshAfterCheckout();
       });
 
       rzp.open();
@@ -363,6 +401,43 @@ export function CustomerOrderPage({ token }: { token: string }) {
   // Computes authoritative production stage tracker information
   const prodStatus = getOrderProductionStatus(order as unknown as Order, order.stages);
   const businessName = order.owner?.businessName || "Advance Pay Boutique";
+  const documentPayments: DocumentPayment[] = (order.payments || []).map((payment) => ({
+    id: payment.id,
+    amount: payment.amount,
+    status: payment.status,
+    paymentType: payment.paymentType,
+    createdAt: payment.createdAt,
+    razorpayPaymentId: payment.razorpayPaymentId,
+  }));
+  const documentOrder = {
+    id: order.id,
+    itemName: order.itemName,
+    totalAmount: order.totalAmount,
+    balance: outstandingBalance,
+    paymentStatus: order.paymentStatus,
+    status: order.status,
+    promisedDate: order.promisedDate,
+    createdAt: order.createdAt,
+    customerName: order.customer?.name || "Customer",
+    boutiqueName: businessName,
+  };
+  const shareUrl = whatsAppShareUrl(
+    trackingShareMessage({
+      boutiqueName: businessName,
+      orderId: order.id,
+      customerName: order.customer?.name || "Customer",
+      paymentStatus: order.paymentStatus,
+      balance: outstandingBalance,
+      url: window.location.href,
+    })
+  );
+  const downloadDocument = (html: string | null) => {
+    if (!html || !openPrintableDocument(html)) {
+      setDocumentNotice("Allow pop-ups to save this document as a PDF.");
+      return;
+    }
+    setDocumentNotice("Choose Save as PDF in the print dialog.");
+  };
 
   return (
     <div className="customer-portal-root">
@@ -454,6 +529,7 @@ export function CustomerOrderPage({ token }: { token: string }) {
 
         {error && <div className="api-error-banner" role="alert">{error}</div>}
         {successMessage && <div className="success-banner" role="status">{successMessage}</div>}
+        {documentNotice && <div className="success-banner" role="status">{documentNotice}</div>}
 
         {/* ── TWO-COLUMN BALANCED CONTENT GRID ── */}
         <div className="customer-content-grid">
@@ -648,7 +724,11 @@ export function CustomerOrderPage({ token }: { token: string }) {
                 </div>
 
                 <div className="fin-metric-cell">
-                  <span className="fin-label">Advance Paid</span>
+                  <span className="fin-label">Agreed advance</span>
+                  <strong className="fin-val">{inr(order.advance || 0)}</strong>
+                </div>
+                <div className="fin-metric-cell">
+                  <span className="fin-label">Amount paid</span>
                   <strong className="fin-val fin-val-paid">{inr(advancePaid)}</strong>
                 </div>
 
@@ -673,6 +753,18 @@ export function CustomerOrderPage({ token }: { token: string }) {
                     {outstandingBalance <= 0 ? "Fully Paid" : `${inr(outstandingBalance)} Remaining`}
                   </span>
                 </div>
+              </div>
+              <div className="document-actions">
+                <button
+                  type="button"
+                  className="customer-btn customer-btn-secondary"
+                  onClick={() => downloadDocument(buildInvoiceHtml(documentOrder, documentPayments))}
+                >
+                  Download invoice
+                </button>
+                <a className="customer-btn customer-btn-secondary" href={shareUrl} target="_blank" rel="noreferrer">
+                  Share on WhatsApp
+                </a>
               </div>
             </section>
 
@@ -817,7 +909,14 @@ export function CustomerOrderPage({ token }: { token: string }) {
                     return (
                       <div key={payment.id} className="history-item-row">
                         <div className="history-item-main">
-                          <strong className="history-amount">+{inr(payment.amount)}</strong>
+                          <strong
+                            className={`history-amount${
+                              isSuccess ? "" : isFailed ? " is-failed" : " is-pending"
+                            }`}
+                          >
+                            {isFailed ? "" : "+"}
+                            {inr(payment.amount)}
+                          </strong>
                           <span className="history-type">({payment.paymentType})</span>
                           <span
                             className={`orders-badge ${
@@ -825,10 +924,16 @@ export function CustomerOrderPage({ token }: { token: string }) {
                                 ? "badge-paid"
                                 : isFailed
                                 ? "badge-cancelled"
-                                : "badge-partial"
+                                : "badge-pending"
                             }`}
                           >
-                            {payment.status}
+                            {isSuccess
+                              ? "Paid"
+                              : isFailed
+                              ? payment.status === "CANCELLED"
+                                ? "Cancelled"
+                                : "Failed"
+                              : "Pending"}
                           </span>
                         </div>
                         <span className="history-date">
@@ -840,6 +945,24 @@ export function CustomerOrderPage({ token }: { token: string }) {
                               })
                             : "—"}
                         </span>
+                        {isSuccess && (
+                          <button
+                            type="button"
+                            className="customer-btn customer-btn-secondary"
+                            onClick={() =>
+                              downloadDocument(buildReceiptHtml(documentOrder, {
+                                id: payment.id,
+                                amount: payment.amount,
+                                status: payment.status,
+                                paymentType: payment.paymentType,
+                                createdAt: payment.createdAt,
+                                razorpayPaymentId: payment.razorpayPaymentId,
+                              }, documentPayments))
+                            }
+                          >
+                            Receipt
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -854,6 +977,15 @@ export function CustomerOrderPage({ token }: { token: string }) {
                   <span>Online and boutique cash receipts will appear here once confirmed.</span>
                 </div>
               )}
+            </section>
+
+            <section className="customer-card" aria-label="Contact boutique">
+              <div className="customer-card-header">
+                <h3>Contact {businessName}</h3>
+              </div>
+              <p className="card-desc">
+                This page does not include the boutique phone number. Use the shop's usual contact, or share this order summary on WhatsApp.
+              </p>
             </section>
           </div>
         </div>

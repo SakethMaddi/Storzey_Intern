@@ -17,10 +17,11 @@ import { HeaderBar, type NavTab } from "./shared/components/HeaderBar";
 import { CustomerCreateCard } from "./features/customers/components/CustomerCreateCard";
 import { CustomerList } from "./features/customers/components/CustomerList";
 import { OrderCreateForm } from "./features/orders/components/OrderCreateForm";
+import { sanitizeOrderStages, validateOrderStages } from "./features/orders/order-wizard";
+import { buildOrdersQuery } from "./features/orders/order-list-query";
 import { OrderList } from "./features/orders/components/OrderList";
-import { DashboardSummary, type SummaryCardAction } from "./features/orders/components/DashboardSummary";
-import { RecentOrdersSection } from "./features/orders/components/RecentOrdersSection";
-import { RecentPaymentSection } from "./features/orders/components/RecentPaymentSection";
+import { ReportsPage } from "./features/orders/components/ReportsPage";
+import { PaymentsPage } from "./features/payments/components/PaymentsPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
 
 // Configure axios globally to always send cookies with requests and provide CSRF custom header
@@ -35,23 +36,51 @@ const API_BASE = API_BASE_URL;
 function AdminApp({
   ownerEmail,
   onLogout,
+  initialTab,
+  initialOrders,
+  initialCustomers,
+  initialStats,
+  initialStages,
+  initialPayments,
+  initialBusinessName,
+  initialOwnerName,
+  initialSelectedOrderId,
 }: {
   ownerEmail: string;
   onLogout: () => void;
+  initialTab?: NavTab;
+  initialOrders?: Order[];
+  initialCustomers?: Customer[];
+  initialStats?: {
+    totalOrders: number;
+    totalCustomers: number;
+    totalOrderValue: number;
+    totalCollected: number;
+    totalOutstanding: number;
+    paidCount: number;
+    partiallyPaidCount: number;
+    pendingCount: number;
+    recentOrders?: any[];
+    recentPayments?: any[];
+  } | null;
+  initialStages?: Record<number, OrderStage[]>;
+  initialPayments?: Record<number, Payment[]>;
+  initialBusinessName?: string;
+  initialOwnerName?: string;
+  initialSelectedOrderId?: number;
 }) {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [orderCustomers, setOrderCustomers] = useState<Customer[]>([]);
+  const [orders, setOrders] = useState<Order[]>(initialOrders || []);
+  const [customers, setCustomers] = useState<Customer[]>(initialCustomers || []);
+  const [orderCustomers, setOrderCustomers] = useState<Customer[]>(initialCustomers || []);
   const [customerPagination, setCustomerPagination] = useState<PaginationMeta | null>(null);
   const [orderPagination, setOrderPagination] = useState<PaginationMeta | null>(null);
   const [customerPage, setCustomerPage] = useState(1);
-  const [orderPage, setOrderPage] = useState(1);
-  const [payments, setPayments] = useState<Record<number, Payment[]>>({});
-  const [stages, setStages] = useState<Record<number, OrderStage[]>>({});
-  const [selectedOrder, setSelectedOrder] = useState<number | null>(null);
+  const [payments, setPayments] = useState<Record<number, Payment[]>>(initialPayments || {});
+  const [stages, setStages] = useState<Record<number, OrderStage[]>>(initialStages || {});
+  const [selectedOrder, setSelectedOrder] = useState<number | null>(initialSelectedOrderId ?? null);
 
   // Navigation tab and archival toggles
-  const [activeTab, setActiveTab] = useState<NavTab>("dashboard");
+  const [activeTab, setActiveTab] = useState<NavTab>(initialTab || "orders");
   const [showArchivedCustomers, setShowArchivedCustomers] = useState(false);
   const [showArchivedOrders, setShowArchivedOrders] = useState(false);
 
@@ -61,9 +90,9 @@ function AdminApp({
     phone: string | null;
     businessName: string | null;
   }>({
-    name: "",
+    name: initialOwnerName || "",
     phone: null,
-    businessName: null,
+    businessName: initialBusinessName || null,
   });
 
   const fetchProfile = async () => {
@@ -83,46 +112,26 @@ function AdminApp({
   };
 
   useEffect(() => {
-    fetchProfile();
+    if (!initialOrders) {
+      fetchProfile();
+    }
   }, []);
 
   useEffect(() => {
-    if (activeTab === "settings") {
+    if (!initialOrders && activeTab === "settings") {
       fetchProfile();
     }
   }, [activeTab]);
 
-  const handleSummaryCardClick = (action: SummaryCardAction) => {
-    if (action === "orders") {
-      setPaymentStatusFilter("ALL");
-      setShowArchivedOrders(false);
-      document.getElementById("orders-in-progress")?.scrollIntoView({ behavior: "smooth" });
-    } else if (action === "customers") {
-      setShowArchivedCustomers(false);
-      document.getElementById("customer-management")?.scrollIntoView({ behavior: "smooth" });
-    } else if (action === "revenue") {
-      document.getElementById("recent-payments")?.scrollIntoView({ behavior: "smooth" });
-    } else if (action === "outstanding") {
-      setPaymentStatusFilter("OUTSTANDING");
-      setShowArchivedOrders(false);
-      document.getElementById("orders-in-progress")?.scrollIntoView({ behavior: "smooth" });
-    } else if (action === "paid") {
-      setPaymentStatusFilter((prev) => (prev === "PAID" ? "ALL" : "PAID"));
-      setShowArchivedOrders(false);
-      document.getElementById("orders-in-progress")?.scrollIntoView({ behavior: "smooth" });
-    } else if (action === "partial") {
-      setPaymentStatusFilter((prev) => (prev === "PARTIALLY_PAID" ? "ALL" : "PARTIALLY_PAID"));
-      setShowArchivedOrders(false);
-      document.getElementById("orders-in-progress")?.scrollIntoView({ behavior: "smooth" });
-    } else if (action === "pending") {
-      setPaymentStatusFilter((prev) => (prev === "PENDING" ? "ALL" : "PENDING"));
-      setShowArchivedOrders(false);
-      document.getElementById("orders-in-progress")?.scrollIntoView({ behavior: "smooth" });
-    }
+  const openSection = (tab: NavTab) => {
+    setActiveTab(tab);
+    window.scrollTo({ top: 0 });
   };
 
   // Quick stats summary
-  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [loadingInitial, setLoadingInitial] = useState(initialOrders ? false : true);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersLoadError, setOrdersLoadError] = useState("");
   const [, startTransition] = useTransition();
 
   // Customer Form State
@@ -138,6 +147,7 @@ function AdminApp({
   const [customerApiError, setCustomerApiError] = useState("");
   const [isSubmittingCustomer, setIsSubmittingCustomer] = useState(false);
   const customerSubmittingRef = useRef(false);
+  const selectCreatedCustomerForOrder = useRef(false);
 
   // Order Form State
   const [customerId, setCustomerId] = useState("");
@@ -182,9 +192,9 @@ function AdminApp({
     paidCount: number;
     partiallyPaidCount: number;
     pendingCount: number;
-    recentOrders: any[];
-    recentPayments: any[];
-  } | null>(null);
+    recentOrders?: any[];
+    recentPayments?: any[];
+  } | null>(initialStats || null);
 
   // Filter & Search dashboard states
   const [orderSearchTerm, setOrderSearchTerm] = useState("");
@@ -210,6 +220,8 @@ function AdminApp({
   const [customerLoading, setCustomerLoading] = useState(true);
   const [customerLoadError, setCustomerLoadError] = useState("");
   const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [archivedCustomerCount, setArchivedCustomerCount] = useState<number | null>(null);
+  const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
 
   // Custom Stages State for Order Creation
   const defaultStageTemplates = [
@@ -241,29 +253,50 @@ function AdminApp({
     }
   };
 
-  const fetchOrders = async (
-    page: number = orderPage,
-    archived: boolean = showArchivedOrders
-  ) => {
+  const orderListQueryRef = useRef({
+    page: 1,
+    archived: false,
+    search: "",
+    status: "ALL",
+  });
+  const orderRequestSeq = useRef(0);
+  const orderSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchOrders = async (options?: {
+    page?: number;
+    archived?: boolean;
+    search?: string;
+    status?: string;
+  }): Promise<Order[] | null> => {
+    const next = {
+      page: options?.page ?? orderListQueryRef.current.page,
+      archived: options?.archived ?? orderListQueryRef.current.archived,
+      search: options?.search ?? orderListQueryRef.current.search,
+      status: options?.status ?? orderListQueryRef.current.status,
+    };
+    orderListQueryRef.current = next;
+    const requestId = ++orderRequestSeq.current;
+    setOrdersLoading(true);
+    setOrdersLoadError("");
     try {
       const response = await axios.get(
-        `${API_BASE}/orders?page=${page}&limit=50&archived=${archived}`
+        `${API_BASE}/orders?${buildOrdersQuery(next)}`
       );
-      const fetchedOrders: Order[] = response.data.data;
+      if (requestId !== orderRequestSeq.current) return null;
+      const fetchedOrders: Order[] = response.data.data ?? [];
       startTransition(() => {
         setOrders(fetchedOrders);
         if (response.data.pagination) {
           setOrderPagination(response.data.pagination);
-          setOrderPage(response.data.pagination.page);
         }
       });
-      // Prefetch stages in background for orders to power production badges and statistics
       if (Array.isArray(fetchedOrders)) {
         fetchedOrders.forEach((o) => {
           if (!stages[o.id]) {
             axios
               .get(`${API_BASE}/orders/${o.id}/stages`)
               .then((res) => {
+                if (requestId !== orderRequestSeq.current) return;
                 if (res.data?.success && res.data.data) {
                   setStages((prev) => ({
                     ...prev,
@@ -275,10 +308,37 @@ function AdminApp({
           }
         });
       }
+      return fetchedOrders;
     } catch (error: any) {
+      if (requestId !== orderRequestSeq.current) return null;
       console.error("Failed to fetch orders:", error);
       handleAuthError(error);
+      if (error?.response?.status !== 401) {
+        setOrdersLoadError("Couldn't load orders. Please try again.");
+      }
+      return null;
+    } finally {
+      if (requestId === orderRequestSeq.current) {
+        setOrdersLoading(false);
+      }
     }
+  };
+
+  const applyOrderServerFilters = (status: string, archived: boolean) => {
+    setPaymentStatusFilter(status);
+    setShowArchivedOrders(archived);
+    void fetchOrders({ page: 1, status, archived });
+  };
+
+  const handleOrderSearchChange = (value: string) => {
+    setOrderSearchTerm(value);
+    orderListQueryRef.current.search = value;
+    if (orderSearchTimer.current) {
+      clearTimeout(orderSearchTimer.current);
+    }
+    orderSearchTimer.current = setTimeout(() => {
+      void fetchOrders({ page: 1, search: value });
+    }, 300);
   };
 
   const fetchOrderCustomers = async () => {
@@ -290,6 +350,17 @@ function AdminApp({
     } catch (error: any) {
       console.error("Failed to fetch customers for orders:", error);
       handleAuthError(error);
+    }
+  };
+
+  const refreshArchivedCustomerCount = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/customers?page=1&limit=1&archived=true`);
+      setArchivedCustomerCount(response.data.pagination?.total ?? 0);
+    } catch (error: any) {
+      if (error?.response?.status === 401) {
+        handleAuthError(error);
+      }
     }
   };
 
@@ -358,6 +429,7 @@ function AdminApp({
       ]);
       setCustomerId((current) => (current === String(customerId) ? "" : current));
       fetchDashboardStats().catch(() => {});
+      refreshArchivedCustomerCount().catch(() => {});
     } catch (error: any) {
       console.error("Failed to archive customer:", error);
       handleAuthError(error);
@@ -373,6 +445,7 @@ function AdminApp({
         fetchOrderCustomers(),
       ]);
       fetchDashboardStats().catch(() => {});
+      refreshArchivedCustomerCount().catch(() => {});
     } catch (error: any) {
       console.error("Failed to restore customer:", error);
       handleAuthError(error);
@@ -389,6 +462,7 @@ function AdminApp({
       ]);
       setCustomerId((current) => (current === String(customerId) ? "" : current));
       fetchDashboardStats().catch(() => {});
+      refreshArchivedCustomerCount().catch(() => {});
     } catch (error: any) {
       console.error("Failed to delete customer:", error);
       handleAuthError(error);
@@ -399,13 +473,13 @@ function AdminApp({
   const handleToggleArchivedOrders = () => {
     const nextVal = !showArchivedOrders;
     setShowArchivedOrders(nextVal);
-    fetchOrders(1, nextVal);
+    void fetchOrders({ page: 1, archived: nextVal });
   };
 
   const handleCancelOrder = async (orderId: number, reason: string) => {
     try {
       await axios.patch(`${API_BASE}/orders/${orderId}/cancel`, { reason });
-      await fetchOrders(orderPage, showArchivedOrders);
+      await fetchOrders();
       fetchDashboardStats().catch(() => {});
     } catch (error: any) {
       console.error("Failed to cancel order:", error);
@@ -418,7 +492,7 @@ function AdminApp({
     try {
       await axios.patch(`${API_BASE}/orders/${orderId}/payments/${paymentId}/cancel`, {});
       await Promise.all([
-        fetchOrders(orderPage, showArchivedOrders),
+        fetchOrders(),
         fetchPayments(orderId),
       ]);
       fetchDashboardStats().catch(() => {});
@@ -432,7 +506,7 @@ function AdminApp({
   const handleArchiveOrder = async (orderId: number) => {
     try {
       await axios.patch(`${API_BASE}/orders/${orderId}/archive`, {});
-      await fetchOrders(orderPage, showArchivedOrders);
+      await fetchOrders();
       fetchDashboardStats().catch(() => {});
     } catch (error: any) {
       console.error("Failed to archive order:", error);
@@ -444,7 +518,7 @@ function AdminApp({
   const handleRestoreOrder = async (orderId: number) => {
     try {
       await axios.patch(`${API_BASE}/orders/${orderId}/restore`, {});
-      await fetchOrders(orderPage, showArchivedOrders);
+      await fetchOrders();
       fetchDashboardStats().catch(() => {});
     } catch (error: any) {
       console.error("Failed to restore order:", error);
@@ -628,17 +702,24 @@ function AdminApp({
   };
 
   const handleViewRecentOrder = async (orderId: number) => {
-    if (activeTab !== "dashboard") {
-      setActiveTab("dashboard");
-    }
+    setActiveTab("orders");
 
     // Reset filters that could hide the recent order
     setPaymentStatusFilter("ALL");
     setOrderSearchTerm("");
     setShowArchivedOrders(false);
+    if (orderSearchTimer.current) {
+      clearTimeout(orderSearchTimer.current);
+    }
+    const loadedOrders = await fetchOrders({
+      page: 1,
+      search: "",
+      status: "ALL",
+      archived: false,
+    });
 
     // If order is not loaded in current orders list, fetch it by ID
-    let targetOrder = orders.find((o) => o.id === orderId);
+    let targetOrder = (loadedOrders ?? orders).find((o) => o.id === orderId);
     if (!targetOrder) {
       try {
         const res = await axios.get(`${API_BASE}/orders/${orderId}`);
@@ -676,8 +757,13 @@ function AdminApp({
   };
 
   const openCustomerOrder = (customer: Customer, orderId?: number) => {
+    setActiveTab("orders");
     setPaymentStatusFilter("ALL");
     setOrderSearchTerm(customer.phone);
+    if (orderSearchTimer.current) {
+      clearTimeout(orderSearchTimer.current);
+    }
+    void fetchOrders({ page: 1, search: customer.phone, status: "ALL" });
     if (orderId != null && selectedOrder !== orderId) {
       void toggleOrderDetails(orderId);
     }
@@ -692,17 +778,26 @@ function AdminApp({
   };
 
   useEffect(() => {
+    if (initialOrders) {
+      setLoadingInitial(false);
+      setCustomerLoading(false);
+      return;
+    }
     Promise.all([
       fetchOrders(),
       fetchCustomers(),
       fetchOrderCustomers(),
       fetchDashboardStats(),
+      refreshArchivedCustomerCount(),
     ]).finally(() => {
       setLoadingInitial(false);
     });
     return () => {
       if (customerSearchTimer.current) {
         clearTimeout(customerSearchTimer.current);
+      }
+      if (orderSearchTimer.current) {
+        clearTimeout(orderSearchTimer.current);
       }
     };
   }, []);
@@ -798,6 +893,12 @@ function AdminApp({
       setEmail("");
 
       if (newCustomer) {
+        if (selectCreatedCustomerForOrder.current) {
+          setCustomerId(String(newCustomer.id));
+          selectCreatedCustomerForOrder.current = false;
+          setShowCustomerForm(false);
+          openSection("new-order");
+        }
         const query = customerSearchRef.current.trim().toLowerCase();
         const matchesVisibleList =
           !showArchivedCustomers &&
@@ -1066,27 +1167,12 @@ function AdminApp({
 
     const validData = validationResult.data;
 
-    // Validate stages before submitting
-    if (orderStages.length === 0) {
-      setOrderErrors({ stages: "At least one production stage is required" });
+    const stageError = validateOrderStages(orderStages);
+    if (stageError) {
+      setOrderErrors({ stages: stageError });
       return;
     }
-    const sanitizedStages = orderStages
-      .map((s) => capitalizeFirstLetter(s.trim()))
-      .filter((s) => s.length > 0);
-    if (sanitizedStages.length !== orderStages.length) {
-      setOrderErrors({ stages: "Stage names cannot be empty" });
-      return;
-    }
-    const seen = new Set<string>();
-    for (const s of sanitizedStages) {
-      const lower = s.toLowerCase();
-      if (seen.has(lower)) {
-        setOrderErrors({ stages: `Duplicate stage name "${s}" is not allowed` });
-        return;
-      }
-      seen.add(lower);
-    }
+    const sanitizedStages = sanitizeOrderStages(orderStages);
 
     orderSubmittingRef.current = true;
     setIsSubmittingOrder(true);
@@ -1104,10 +1190,7 @@ function AdminApp({
       const newOrder = response.data.data;
 
       setOrderSuccess(response.data.message || "Order created successfully!");
-      // Automatically dismiss the success toast after 4 seconds
-      setTimeout(() => {
-        setOrderSuccess("");
-      }, 4000);
+      setCreatedOrderId(newOrder?.id ?? null);
 
       setItemName("");
       setTotalAmount("");
@@ -1145,67 +1228,51 @@ function AdminApp({
   };
 
   const totalOutstanding = dashboardStats ? dashboardStats.totalOutstanding : orders.reduce((sum, o) => sum + o.balance, 0);
-  const totalRevenue = dashboardStats ? dashboardStats.totalCollected : orders.reduce((sum, o) => sum + o.totalAmount, 0);
-  const totalOrdersCount = dashboardStats ? dashboardStats.totalOrders : orders.length;
+  const totalRevenue = dashboardStats ? dashboardStats.totalCollected : 0;
   const totalCustomersCount = dashboardStats ? dashboardStats.totalCustomers : customers.length;
 
   return (
-    <div>
+    <div className="admin-app-layout">
       <HeaderBar
         ownerEmail={ownerEmail}
         ownerName={ownerProfile.name}
         businessName={ownerProfile.businessName}
         onLogout={onLogout}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
+        activeTab={activeTab === "new-order" ? "orders" : activeTab}
+        onTabChange={openSection}
       />
 
-      {activeTab === "settings" ? (
-        <SettingsPage
-          ownerEmail={ownerEmail}
-          ownerName={ownerProfile.name}
-          ownerPhone={ownerProfile.phone}
-          businessName={ownerProfile.businessName}
-          onLogout={onLogout}
-          onProfileUpdated={(updated) => {
-            setOwnerProfile({
-              name: updated.name,
-              phone: updated.phone,
-              businessName: updated.businessName,
-            });
-          }}
-        />
-      ) : (
-        <>
-          {/* 2. Dashboard Heading */}
-          <div style={{ margin: "8px 0 20px" }}>
-            <h1 style={{ margin: "0 0 4px", fontSize: "28px", color: "#1e3a8a", fontWeight: 800 }}>
-              {ownerProfile.businessName || "Advance Pay"}
-            </h1>
-            <p style={{ margin: 0, fontSize: "14px", color: "#64748b" }}>
-              Boutique Order & Advance Management Dashboard
-            </p>
-          </div>
-
-          {/* 3. Dashboard Summary Cards */}
-          <DashboardSummary
-            totalOrders={totalOrdersCount}
-            totalCustomers={totalCustomersCount}
-            totalRevenue={totalRevenue}
-            totalOutstanding={totalOutstanding}
-            paidCount={dashboardStats?.paidCount ?? 0}
-            partiallyPaidCount={dashboardStats?.partiallyPaidCount ?? 0}
-            pendingCount={dashboardStats?.pendingCount ?? 0}
-            activeStatusFilter={paymentStatusFilter}
-            onCardClick={handleSummaryCardClick}
+      <main className="admin-main-viewport">
+        {activeTab === "settings" ? (
+          <SettingsPage
+            ownerEmail={ownerEmail}
+            ownerName={ownerProfile.name}
+            ownerPhone={ownerProfile.phone}
+            businessName={ownerProfile.businessName}
+            onLogout={onLogout}
+            onProfileUpdated={(updated) => {
+              setOwnerProfile({
+                name: updated.name,
+                phone: updated.phone,
+                businessName: updated.businessName,
+              });
+            }}
           />
-
-          {/* 4. Orders in Progress / Orders We're Dealing With */}
+        ) : (
+          <>
+            {activeTab === "orders" && (
           <OrderList
             orders={orders}
             pagination={orderPagination}
-            onPageChange={(p) => fetchOrders(p, showArchivedOrders)}
+            onPageChange={(p) => {
+              void fetchOrders({ page: p });
+            }}
             loadingInitial={loadingInitial}
+            loading={ordersLoading}
+            loadError={ordersLoadError}
+            onRetry={() => {
+              void fetchOrders();
+            }}
             searchTerm={orderSearchTerm}
             statusFilter={paymentStatusFilter}
             selectedOrderId={selectedOrder}
@@ -1216,8 +1283,8 @@ function AdminApp({
             paymentSuccess={paymentSuccess}
             submittingPayment={submittingPayment}
             updatingStage={updatingStage}
-            onSearchChange={setOrderSearchTerm}
-            onStatusFilterChange={setPaymentStatusFilter}
+            onSearchChange={handleOrderSearchChange}
+            onStatusFilterChange={(status) => applyOrderServerFilters(status, showArchivedOrders)}
             onToggleDetails={toggleOrderDetails}
             onPaymentAmountChange={(orderId, amount) => {
               const sanitized = amount.replace(/\D/g, "");
@@ -1262,47 +1329,47 @@ function AdminApp({
             onRestoreOrder={handleRestoreOrder}
             showArchived={showArchivedOrders}
             onToggleArchived={handleToggleArchivedOrders}
+            onCreateOrderClick={() => openSection("new-order")}
           />
+          )}
 
-          {/* 5. Customer Management */}
-          <section id="customer-management" className="customers-page" aria-label="Customer Management">
-            <div className="customers-header">
+          {activeTab === "customers" && (
+          <section id="customer-management" className="boutique-section" aria-label="Customer Management">
+            <div className="section-header-row">
               <div>
-                <h2>Customers</h2>
-                <p>Add clients and keep their contact details up to date.</p>
+                <div className="section-title-wrap">
+                  <h1 className="section-title">
+                    {showArchivedCustomers ? "Archived Customers" : "Customers"}
+                  </h1>
+                  <span className="count-pill">
+                    {showArchivedCustomers
+                      ? (archivedCustomerCount ?? (customerPagination ? customerPagination.total : customers.length))
+                      : totalCustomersCount}
+                  </span>
+                </div>
+                <p className="section-subtitle">
+                  {showArchivedCustomers
+                    ? "Review and restore archived client profiles."
+                    : "Manage client contact details and order histories."}
+                </p>
               </div>
               <button
                 type="button"
-                className="customers-btn customers-btn-primary"
+                className="btn-primary"
                 onClick={() => {
-                  setShowCustomerForm(true);
-                  window.requestAnimationFrame(() => {
-                    document.getElementById("add-customer")?.scrollIntoView({
-                      behavior: "smooth",
-                      block: "nearest",
+                  setShowCustomerForm((v) => !v);
+                  if (!showCustomerForm) {
+                    window.requestAnimationFrame(() => {
+                      document.getElementById("add-customer")?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "nearest",
+                      });
                     });
-                  });
+                  }
                 }}
               >
-                Add customer
+                {showCustomerForm ? "Close Form" : "+ Add Customer"}
               </button>
-            </div>
-
-            <div className="customers-stats">
-              <div>
-                <span>Active customers</span>
-                <strong>{totalCustomersCount}</strong>
-              </div>
-              <div>
-                <span>
-                  {customerSearch.trim()
-                    ? "Search results"
-                    : showArchivedCustomers
-                      ? "Archived customers"
-                      : "Listed customers"}
-                </span>
-                <strong>{customerPagination ? customerPagination.total : customers.length}</strong>
-              </div>
             </div>
 
             {showCustomerForm && (
@@ -1329,7 +1396,10 @@ function AdminApp({
                 }}
                 onPhonePaste={handlePhonePaste}
                 onSubmit={createCustomer}
-                onClose={() => setShowCustomerForm(false)}
+                onClose={() => {
+                  selectCreatedCustomerForOrder.current = false;
+                  setShowCustomerForm(false);
+                }}
               />
             )}
 
@@ -1389,14 +1459,24 @@ function AdminApp({
               onOpenOrder={openCustomerOrder}
             />
           </section>
+          )}
 
-          {/* 6. Create Order */}
-          <section id="create-order" className="orders-page" aria-label="Create Order" style={{ marginTop: "36px" }}>
-            <div className="orders-header">
+          {activeTab === "new-order" && (
+          <section id="create-order" className="boutique-section" aria-label="Create Order">
+            <div className="section-header-row">
               <div>
-                <h2>Create Order</h2>
-                <p>Record new bespoke clothing, advance deposits, and tailor production milestones.</p>
+                <h1 className="section-title">Create Order</h1>
+                <p className="section-subtitle">
+                  Record new bespoke clothing, agreed deposits, and tailor milestones.
+                </p>
               </div>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => openSection("orders")}
+              >
+                ← Back to Orders
+              </button>
             </div>
 
             <OrderCreateForm
@@ -1410,7 +1490,10 @@ function AdminApp({
               orderSuccess={orderSuccess}
               orderApiError={orderApiError}
               isSubmittingOrder={isSubmittingOrder}
-              onDismissSuccess={() => setOrderSuccess("")}
+              onDismissSuccess={() => {
+                setOrderSuccess("");
+                setCreatedOrderId(null);
+              }}
               orderStages={orderStages}
               newStageInput={newStageInput}
               stageInputError={stageInputError}
@@ -1453,21 +1536,40 @@ function AdminApp({
               onEditStageName={handleEditStageName}
               onResetDefaultStages={handleResetDefaultStages}
               onSubmit={createOrder}
+              onStartAddCustomer={() => {
+                selectCreatedCustomerForOrder.current = true;
+                setShowCustomerForm(true);
+                openSection("customers");
+              }}
+              onViewCreatedOrder={
+                createdOrderId
+                  ? () => {
+                      void handleViewRecentOrder(createdOrderId);
+                    }
+                  : undefined
+              }
             />
           </section>
+          )}
 
-          {/* 7. Recent Orders */}
-          <RecentOrdersSection
-            recentOrders={dashboardStats?.recentOrders ?? []}
-            onViewOrderDetails={handleViewRecentOrder}
-          />
+          {activeTab === "payments" && (
+            <PaymentsPage
+              totalCollected={totalRevenue}
+              totalOutstanding={totalOutstanding}
+              recentPayments={dashboardStats?.recentPayments ?? []}
+              orders={orders}
+              onOpenOrder={(orderId) => {
+                void handleViewRecentOrder(orderId);
+              }}
+            />
+          )}
 
-          {/* 8. Recent Payment Activity */}
-          <RecentPaymentSection
-            recentPayments={dashboardStats?.recentPayments ?? []}
-          />
+          {activeTab === "reports" && (
+            <ReportsPage stats={dashboardStats} />
+          )}
         </>
       )}
+      </main>
     </div>
   );
 }
@@ -1555,6 +1657,14 @@ function OwnerPortal() {
   return <AdminApp ownerEmail={ownerEmail} onLogout={handleLogout} />;
 }
 
+import {
+  PREVIEW_CUSTOMERS,
+  PREVIEW_ORDERS,
+  PREVIEW_PAYMENTS,
+  PREVIEW_STAGES,
+  PREVIEW_STATS,
+} from "./preview-fixtures";
+
 function App() {
   const path = window.location.pathname;
   const match = path.match(/^\/track\/([^/]+)$/);
@@ -1562,6 +1672,28 @@ function App() {
   // 1. Customer tracking page is always public
   if (match) {
     return <CustomerOrderPage token={match[1]} />;
+  }
+
+  // 2. UI Preview Harness (active when ?preview=true)
+  if (typeof window !== "undefined" && window.location.search.includes("preview=true")) {
+    const params = new URLSearchParams(window.location.search);
+    const tab = (params.get("tab") as NavTab) || "orders";
+    const orderIdParam = params.get("orderId");
+    return (
+      <AdminApp
+        ownerEmail="owner@saffronbridal.com"
+        onLogout={() => {}}
+        initialTab={tab}
+        initialOrders={PREVIEW_ORDERS}
+        initialCustomers={PREVIEW_CUSTOMERS}
+        initialStats={PREVIEW_STATS}
+        initialStages={PREVIEW_STAGES}
+        initialPayments={PREVIEW_PAYMENTS}
+        initialBusinessName="Saffron Bridal Studio"
+        initialOwnerName="Anusha Rao"
+        initialSelectedOrderId={orderIdParam ? Number(orderIdParam) : undefined}
+      />
+    );
   }
 
   return <OwnerPortal />;

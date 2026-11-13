@@ -187,12 +187,12 @@ export function DashboardSummary({
         className={`summary-card clickable-card ${activeStatusFilter === "PENDING" ? "card-active" : ""}`}
         tabIndex={0}
         role="button"
-        aria-label={`Pending Orders: ${pendingCount || 0}. Click to filter orders awaiting advance.`}
+        aria-label={`Awaiting payment: ${pendingCount || 0}. Click to filter orders with no recorded payment.`}
         onClick={() => onCardClick?.("pending")}
         onKeyDown={(e) => handleKeyDown(e, "pending")}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <span className="summary-label">Pending Production</span>
+          <span className="summary-label">Awaiting payment</span>
           {activeStatusFilter === "PENDING" && (
             <span className="active-filter-badge">Active</span>
           )}
@@ -200,7 +200,7 @@ export function DashboardSummary({
         <span className="summary-val" style={{ color: "#b91c1c" }}>
           {pendingCount || 0}
         </span>
-        <span className="card-hint">Filter pending work</span>
+        <span className="card-hint">No payment recorded yet</span>
       </div>
     </div>
   );

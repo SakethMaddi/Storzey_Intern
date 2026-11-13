@@ -98,27 +98,26 @@ export function CustomerList({
   const relatedOrders = selected
     ? orders.filter((order) => order.customerId === selected.id)
     : [];
-  const listedTotal = pagination ? pagination.total : customers.length;
 
   const confirmArchive = (customer: Customer) => {
-    if (window.confirm(`Archive ${customer.name}? They won't appear in the main list.`)) {
+    if (window.confirm(`Archive ${customer.name}? They will be moved to the archived customers list.`)) {
       onArchiveCustomer(customer.id);
     }
   };
 
   const confirmDelete = (customer: Customer) => {
-    if (window.confirm(`Permanently delete ${customer.name}? This cannot be undone.`)) {
+    if (window.confirm(`Permanently delete ${customer.name}? This action cannot be undone.`)) {
       onDeleteCustomer(customer.id);
     }
   };
 
   const renderActions = (customer: Customer) => (
-    <div className="customers-actions">
+    <div className="table-actions-inline" onClick={(e) => e.stopPropagation()}>
       {!showArchived ? (
         <>
           <button
             type="button"
-            className="customers-btn customers-btn-primary"
+            className="btn-action-sm"
             onClick={(event) => {
               event.stopPropagation();
               setSelectedId(customer.id);
@@ -129,7 +128,7 @@ export function CustomerList({
           </button>
           <button
             type="button"
-            className="customers-btn customers-btn-warning"
+            className="btn-ghost-sm"
             onClick={(event) => {
               event.stopPropagation();
               confirmArchive(customer);
@@ -142,7 +141,7 @@ export function CustomerList({
         <>
           <button
             type="button"
-            className="customers-btn customers-btn-success"
+            className="btn-action-sm"
             onClick={(event) => {
               event.stopPropagation();
               onRestoreCustomer(customer.id);
@@ -152,7 +151,7 @@ export function CustomerList({
           </button>
           <button
             type="button"
-            className="customers-btn customers-btn-danger"
+            className="btn-ghost-danger-sm"
             onClick={(event) => {
               event.stopPropagation();
               confirmDelete(customer);
@@ -166,293 +165,393 @@ export function CustomerList({
   );
 
   return (
-    <>
-      <div className="customers-toolbar">
-        <label className="customers-search">
-          <span className="customers-search-icon" aria-hidden="true">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="7"></circle>
-              <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
-            </svg>
-          </span>
+    <div className="customers-content-wrap">
+      {/* ── TOOLBAR: SEARCH & SEGMENTED FILTER ── */}
+      <div className="orders-control-bar">
+        <div className="search-box">
+          <svg
+            className="search-icon"
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
           <input
             id="customer-search"
             type="search"
             value={searchTerm}
-            placeholder="Search by name or phone"
+            placeholder="Search clients by name or phone..."
             aria-label="Search customers by name or phone"
             onChange={(event) => onSearchChange(event.target.value)}
+            className="search-input"
           />
-        </label>
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => onSearchChange("")}
+              className="search-clear-btn"
+              aria-label="Clear search"
+            >
+              ✕
+            </button>
+          )}
+        </div>
 
-        <div className="customers-toolbar-side">
-          <div className="customers-filter" role="group" aria-label="Customer list">
-            <button
-              type="button"
-              className={!showArchived ? "is-selected" : ""}
-              aria-pressed={!showArchived}
-              onClick={() => {
-                if (showArchived) onToggleArchived();
-              }}
-            >
-              Active
-            </button>
-            <button
-              type="button"
-              className={showArchived ? "is-selected" : ""}
-              aria-pressed={showArchived}
-              onClick={() => {
-                if (!showArchived) onToggleArchived();
-              }}
-            >
-              Archived
-            </button>
-          </div>
-          <p className="customers-sort">Newest first</p>
+        <div className="segmented-toggle" role="group" aria-label="Customer status view">
+          <button
+            type="button"
+            className={`segmented-btn ${!showArchived ? "is-active" : ""}`}
+            onClick={() => {
+              if (showArchived) onToggleArchived();
+            }}
+          >
+            Active
+          </button>
+          <button
+            type="button"
+            className={`segmented-btn ${showArchived ? "is-active" : ""}`}
+            onClick={() => {
+              if (!showArchived) onToggleArchived();
+            }}
+          >
+            Archived
+          </button>
         </div>
       </div>
 
       {loadError && (
-        <div className="api-error-banner customers-load-error" role="alert">
+        <div className="inline-alert alert-error" role="alert">
           <span>{loadError}</span>
-          <button type="button" className="customers-btn customers-btn-ghost" onClick={onRetry}>
+          <button type="button" className="btn-ghost-sm" onClick={onRetry}>
             Try again
           </button>
         </div>
       )}
 
+      {/* ── EXPANDED CUSTOMER DETAILS PANEL ── */}
       {selected && (
-        <section className="customers-detail" aria-label={`Details for ${selected.name}`}>
-          <div className="customers-panel-head">
-            <div>
-              <h3>{selected.name}</h3>
-              <p>Contact details and orders currently loaded on this dashboard.</p>
+        <section className="customer-details-card" aria-label={`Details for ${selected.name}`}>
+          <div className="card-top-row">
+            <div className="card-id-name">
+              <div className="customer-avatar-med">
+                {selected.name.slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <h3 className="card-customer-title">{selected.name}</h3>
+                <span className="card-item-tag">
+                  {selected.isArchived ? "Archived Client" : "Active Client"} · Added {formatDate(selected.createdAt)}
+                </span>
+              </div>
             </div>
+
             <button
               type="button"
-              className="customers-btn customers-btn-ghost"
+              className="btn-ghost-sm"
               onClick={() => {
                 setSelectedId(null);
                 if (editingCustomer?.id === selected.id) onCancelEdit();
               }}
             >
-              Close
+              Close ✕
             </button>
           </div>
 
           {editingCustomer?.id === selected.id ? (
-            <CustomerEditModal
-              customer={editingCustomer}
-              editName={editCustomerName}
-              editPhone={editCustomerPhone}
-              editEmail={editCustomerEmail}
-              errors={editCustomerErrors}
-              apiError={editCustomerApiError}
-              successMessage={editCustomerSuccess}
-              submitting={isSubmittingCustomerEdit}
-              onNameChange={onEditNameChange}
-              onPhoneChange={onEditPhoneChange}
-              onEmailChange={onEditEmailChange}
-              onSubmit={onUpdateCustomerSubmit}
-              onCancel={onCancelEdit}
-            />
+            <div className="customer-edit-subpanel">
+              <CustomerEditModal
+                customer={editingCustomer}
+                editName={editCustomerName}
+                editPhone={editCustomerPhone}
+                editEmail={editCustomerEmail}
+                errors={editCustomerErrors}
+                apiError={editCustomerApiError}
+                successMessage={editCustomerSuccess}
+                submitting={isSubmittingCustomerEdit}
+                onNameChange={onEditNameChange}
+                onPhoneChange={onEditPhoneChange}
+                onEmailChange={onEditEmailChange}
+                onSubmit={onUpdateCustomerSubmit}
+                onCancel={onCancelEdit}
+              />
+            </div>
           ) : (
-            <dl className="customers-contact">
-              <div>
-                <dt>Phone</dt>
-                <dd>{selected.phone}</dd>
+            <div className="detail-data-grid" style={{ margin: "16px 0" }}>
+              <div className="data-item">
+                <span className="data-label">Phone</span>
+                <strong className="data-value">
+                  <a href={`tel:${selected.phone}`} className="link-phone">
+                    {selected.phone}
+                  </a>
+                </strong>
               </div>
-              <div>
-                <dt>Email</dt>
-                <dd>{selected.email || "No email on file"}</dd>
+              <div className="data-item">
+                <span className="data-label">Email</span>
+                <strong className="data-value">{selected.email || "No email on file"}</strong>
               </div>
-              <div>
-                <dt>Status</dt>
-                <dd>{selected.isArchived ? "Archived" : "Active"}</dd>
+              <div className="data-item">
+                <span className="data-label">Client Since</span>
+                <strong className="data-value">{formatDate(selected.createdAt)}</strong>
               </div>
-              <div>
-                <dt>Added</dt>
-                <dd>{formatDate(selected.createdAt)}</dd>
+              <div className="data-item">
+                <span className="data-label">Orders on File</span>
+                <strong className="data-value">{relatedOrders.length}</strong>
               </div>
-            </dl>
+            </div>
           )}
 
-          <div className="customers-detail-actions">
+          <div className="customer-panel-actions">
             {editingCustomer?.id !== selected.id && renderActions(selected)}
             <button
               type="button"
-              className="customers-btn customers-btn-ghost"
+              className="btn-ghost-sm"
               onClick={() => onOpenOrder(selected)}
             >
-              Find orders
+              Search All Orders for Client →
             </button>
           </div>
 
-          <div className="customers-history">
-            <h4>Orders and payments</h4>
+          {/* Customer Order History */}
+          <div className="customer-history-section">
+            <h4 className="subpanel-title">Order History</h4>
             {relatedOrders.length === 0 ? (
-              <p>
-                No orders for this customer are on the current orders page. Use Find orders to
-                search the loaded orders by this phone number.
+              <p className="detail-empty-text">
+                No orders for this customer are currently loaded on this page.
               </p>
             ) : (
-              <ul>
+              <div className="customer-orders-mini-list">
                 {relatedOrders.map((order) => {
                   const orderPayments = payments[order.id] ?? order.payments ?? [];
+                  const paid = Math.max(0, order.totalAmount - order.balance);
                   return (
-                    <li key={order.id}>
-                      <div className="customers-order-row">
+                    <div key={order.id} className="customer-order-item">
+                      <div className="order-item-main">
                         <div>
-                          <strong>{order.itemName}</strong>
-                          <span>Order #{order.id}</span>
+                          <strong className="order-item-name">{order.itemName}</strong>
+                          <span className="order-item-num">Order #{order.id}</span>
                         </div>
-                        <span className={`customers-pay customers-pay-${order.paymentStatus.toLowerCase()}`}>
+                        <span className={`status-badge-sm ${
+                          order.paymentStatus === "PAID"
+                            ? "badge-paid"
+                            : order.paymentStatus === "PARTIALLY_PAID"
+                            ? "badge-partial"
+                            : "badge-pending"
+                        }`}>
                           {paymentLabel(order.paymentStatus)}
                         </span>
                       </div>
-                      <p className="customers-order-money">
-                        Total {inr(order.totalAmount)} · Advance {inr(order.advance)} · Balance{" "}
-                        {inr(order.balance)}
-                      </p>
+
+                      <div className="order-item-amounts">
+                        <span>Total: <strong>{inr(order.totalAmount)}</strong></span>
+                        <span>Paid: <strong className="text-paid">{inr(paid)}</strong></span>
+                        <span>Balance: <strong className={order.balance > 0 ? "text-balance" : "text-paid"}>{inr(order.balance)}</strong></span>
+                      </div>
+
                       {orderPayments.length > 0 && (
-                        <ul className="customers-payments">
-                          {orderPayments.map((payment) => (
-                            <li key={payment.id}>
-                              {inr(payment.amount)} · {payment.paymentType} · {payment.status} ·{" "}
-                              {formatDate(payment.createdAt)}
-                            </li>
+                        <div className="order-payments-chips">
+                          {orderPayments.map((p) => (
+                            <span key={p.id} className="payment-chip-sm">
+                              {inr(p.amount)} ({p.paymentType}) · {formatDate(p.createdAt)}
+                            </span>
                           ))}
-                        </ul>
+                        </div>
                       )}
+
                       <button
                         type="button"
-                        className="customers-btn customers-btn-ghost"
+                        className="btn-link-action"
                         onClick={() => onOpenOrder(selected, order.id)}
                       >
-                        Open order
+                        View Full Order Details →
                       </button>
-                    </li>
+                    </div>
                   );
                 })}
-              </ul>
+              </div>
             )}
           </div>
         </section>
       )}
 
+      {/* ── CUSTOMER LISTING ── */}
       {loading && customers.length === 0 ? (
-        <p className="customers-empty">Loading customers...</p>
+        <div className="empty-state-card" role="status">
+          <div className="empty-spinner" />
+          <p>Loading customers...</p>
+        </div>
       ) : customers.length === 0 ? (
-        <p className="customers-empty">
-          {searchTerm.trim()
-            ? "No customers match that name or phone number."
-            : showArchived
-              ? "No archived customers."
-              : "No active customers."}
-        </p>
+        <div className="empty-state-card">
+          <div className="empty-icon-wrap">👥</div>
+          <h3>
+            {searchTerm.trim()
+              ? "No Customers Match Your Search"
+              : showArchived
+              ? "No Archived Customers"
+              : "No Active Customers"}
+          </h3>
+          <p>
+            {searchTerm.trim()
+              ? "Try checking the phone number or name spelling."
+              : showArchived
+              ? "Archived customer records will be preserved here."
+              : "Add your first boutique customer to start recording orders."}
+          </p>
+        </div>
       ) : (
         <>
-          {loading && <p className="customers-updating">Updating customers...</p>}
-          <p className="customers-count">
-            {listedTotal} {showArchived ? "archived" : "active"}{" "}
-            {listedTotal === 1 ? "customer" : "customers"}
-            {searchTerm.trim() ? " matching your search" : ""}
-          </p>
-
-          <div className="desktop-table-container customers-table-wrap">
-            <table className="customers-table">
+          {/* ── DESKTOP CUSTOMERS TABLE ── */}
+          <div className="desktop-table-wrapper">
+            <table className="boutique-table">
               <thead>
                 <tr>
                   <th>Customer</th>
-                  <th>Phone</th>
+                  <th>Phone Number</th>
                   <th>Email</th>
+                  <th>Orders</th>
                   <th>Added</th>
                   <th>Status</th>
-                  <th>Actions</th>
+                  <th style={{ textAlign: "right", minWidth: "140px" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {customers.map((customer) => (
-                  <tr
-                    key={customer.id}
-                    className={activeSelectedId === customer.id ? "is-selected" : ""}
-                    onClick={() => setSelectedId(customer.id)}
-                  >
-                    <td>
-                      <button
-                        type="button"
-                        className="customers-name"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setSelectedId(customer.id);
-                        }}
-                      >
-                        {customer.name}
-                      </button>
-                    </td>
-                    <td>{customer.phone}</td>
-                    <td>{customer.email || "—"}</td>
-                    <td>{formatDate(customer.createdAt)}</td>
-                    <td>
-                      <span className={customer.isArchived ? "customers-status is-archived" : "customers-status"}>
-                        {customer.isArchived ? "Archived" : "Active"}
-                      </span>
-                    </td>
-                    <td>{renderActions(customer)}</td>
-                  </tr>
-                ))}
+                {customers.map((customer) => {
+                  const customerOrdersCount = orders.filter((o) => o.customerId === customer.id).length;
+                  const isSelected = activeSelectedId === customer.id;
+
+                  return (
+                    <tr
+                      key={customer.id}
+                      className={`table-row ${isSelected ? "is-selected" : ""}`}
+                      onClick={() => setSelectedId(customer.id)}
+                    >
+                      <td className="cell-customer">
+                        <div className="customer-info">
+                          <strong className="customer-name">{customer.name}</strong>
+                        </div>
+                      </td>
+                      <td>
+                        <a
+                          href={`tel:${customer.phone}`}
+                          className="link-phone"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {customer.phone}
+                        </a>
+                      </td>
+                      <td>{customer.email || <span className="muted-dash">—</span>}</td>
+                      <td>
+                        <span className="count-badge-sm">
+                          {customerOrdersCount} {customerOrdersCount === 1 ? "order" : "orders"}
+                        </span>
+                      </td>
+                      <td>{formatDate(customer.createdAt)}</td>
+                      <td>
+                        <span className={`status-badge-sm ${customer.isArchived ? "badge-archived" : "badge-active"}`}>
+                          {customer.isArchived ? "Archived" : "Active"}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {renderActions(customer)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
-          <div className="mobile-cards-container">
-            {customers.map((customer) => (
-              <article
-                key={customer.id}
-                className={`customers-mobile-card${activeSelectedId === customer.id ? " is-selected" : ""}`}
-              >
-                <button
-                  type="button"
-                  className="customers-name"
+          {/* ── MOBILE CUSTOMER CARDS (< 768px) ── */}
+          <div className="mobile-orders-list">
+            {customers.map((customer) => {
+              const customerOrdersCount = orders.filter((o) => o.customerId === customer.id).length;
+              const isSelected = activeSelectedId === customer.id;
+
+              return (
+                <article
+                  key={customer.id}
+                  className={`boutique-order-card ${isSelected ? "is-selected" : ""}`}
                   onClick={() => setSelectedId(customer.id)}
                 >
-                  {customer.name}
-                </button>
-                <p>{customer.phone}</p>
-                <p>{customer.email || "No email"}</p>
-                <p className="customers-mobile-meta">
-                  Added {formatDate(customer.createdAt)} · {customer.isArchived ? "Archived" : "Active"}
-                </p>
-                {renderActions(customer)}
-              </article>
-            ))}
+                  <div className="card-top-row">
+                    <div className="card-id-name">
+                      <div className="customer-avatar-mini">
+                        {customer.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 className="card-customer-title">{customer.name}</h3>
+                        <span className="card-item-tag">
+                          {customerOrdersCount} {customerOrdersCount === 1 ? "order" : "orders"} on file
+                        </span>
+                      </div>
+                    </div>
+                    <span className={`status-badge-sm ${customer.isArchived ? "badge-archived" : "badge-active"}`}>
+                      {customer.isArchived ? "Archived" : "Active"}
+                    </span>
+                  </div>
+
+                  <div className="card-metrics-grid" style={{ gridTemplateColumns: "1fr 1fr", margin: "12px 0 8px" }}>
+                    <div className="metric-box">
+                      <span className="metric-label">Phone</span>
+                      <a href={`tel:${customer.phone}`} className="link-phone" onClick={(e) => e.stopPropagation()}>
+                        {customer.phone}
+                      </a>
+                    </div>
+                    <div className="metric-box">
+                      <span className="metric-label">Added Date</span>
+                      <strong className="metric-value" style={{ fontSize: "13px" }}>
+                        {formatDate(customer.createdAt)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div className="card-actions-bar">
+                    <button
+                      type="button"
+                      className="btn-action-view"
+                      onClick={() => setSelectedId(customer.id)}
+                    >
+                      {isSelected ? "Hide Details" : "View Customer"}
+                    </button>
+                    {renderActions(customer)}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </>
       )}
 
+      {/* ── PAGINATION ── */}
       {pagination && pagination.totalPages > 1 && onPageChange && (
-        <div className="customers-pagination">
+        <div className="pagination-bar" role="navigation" aria-label="Customers pagination">
           <button
             type="button"
-            className="customers-btn customers-btn-ghost"
+            className="pagination-btn"
             disabled={!pagination.hasPreviousPage}
             onClick={() => onPageChange(pagination.page - 1)}
           >
-            Previous
+            ← Previous
           </button>
-          <span>
+          <span className="pagination-info">
             Page {pagination.page} of {pagination.totalPages}
           </span>
           <button
             type="button"
-            className="customers-btn customers-btn-ghost"
+            className="pagination-btn"
             disabled={!pagination.hasNextPage}
             onClick={() => onPageChange(pagination.page + 1)}
           >
-            Next
+            Next →
           </button>
         </div>
       )}
-    </>
+    </div>
   );
 }

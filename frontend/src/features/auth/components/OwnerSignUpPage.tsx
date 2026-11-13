@@ -153,7 +153,7 @@ export function OwnerSignUpPage({
         <h1>Advance Pay</h1>
         <h2>Register Boutique Owner</h2>
         <p style={{ color: "#64748b", fontSize: "14px", margin: "0 0 20px" }}>
-          Secure login for your boutique business.
+          Create the owner account for your boutique.
         </p>
 
         {error && (
