@@ -12,6 +12,9 @@
   },
   "keywords": [],
   "type": "module",
+  "engines": {
+    "node": "22"
+  },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
     "@fastify/cors": "^11.4.1",

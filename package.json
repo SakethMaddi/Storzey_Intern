@@ -1,4 +1,7 @@
 {
+  "engines": {
+    "node": "22"
+  },
   "scripts": {
     "build": "npm --prefix frontend run build && npm --prefix backend run build",
     "dev": "npm --prefix frontend run dev"
