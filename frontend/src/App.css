@@ -1205,8 +1205,9 @@ button:disabled {
   .desktop-table-container {
     display: none !important;
   }
-  .desktop-expanded-details-container {
-    display: none;
+  .desktop-expanded-details-container,
+  .desktop-details-wrapper {
+    display: none !important;
   }
   .mobile-cards-container {
     display: block !important;
@@ -2854,8 +2855,9 @@ button:disabled {
   .desktop-table-container {
     display: none !important;
   }
-  .desktop-expanded-details-container {
-    display: none;
+  .desktop-expanded-details-container,
+  .desktop-details-wrapper {
+    display: none !important;
   }
   .mobile-cards-container {
     display: block !important;
@@ -5929,6 +5931,12 @@ button:disabled {
 
 .desktop-details-wrapper {
   margin-top: 16px;
+}
+
+@media (max-width: 768px) {
+  .desktop-details-wrapper {
+    display: none !important;
+  }
 }
 
 .detail-panel-section {
