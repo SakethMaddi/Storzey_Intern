@@ -189,7 +189,7 @@ export async function bootstrap(exitOnError: boolean = true) {
     try {
       const { emailService } = await import("./modules/email/email.service.js");
       emailService.startWorker(30000);
-      console.log("Email outbox worker started.");
+      console.log(`Email outbox worker started. SMTP configured: ${emailService.isSmtpConfigured()}`);
     } catch (e: any) {
       console.error("Failed to start email worker:", e.message);
     }

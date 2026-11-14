@@ -4,6 +4,8 @@ import { validateJwtSecret } from "./jwt.js";
 // Load local environment files if present
 // Neon CLI writes its variables at the workspace root. Do not override values
 // already injected by a deployment platform or supplied in backend/.env.
+config({ path: new URL("../../../.env", import.meta.url), override: false });
+config({ path: new URL("../../.env", import.meta.url), override: false });
 config({ path: new URL("../../../.env.local", import.meta.url), override: false });
 config({ override: false });
 

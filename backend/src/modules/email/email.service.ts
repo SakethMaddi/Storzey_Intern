@@ -96,7 +96,10 @@ export class EmailService {
     const host = process.env.SMTP_HOST?.trim();
     const port = Number(process.env.SMTP_PORT) || 587;
     const user = process.env.SMTP_USER?.trim();
-    const pass = process.env.SMTP_PASS?.trim();
+    const rawPass = process.env.SMTP_PASS?.trim();
+    // Google App Passwords are 16 letters displayed in 4 groups separated by spaces (e.g. "abcd efgh ijkl mnop").
+    // Stripping spaces ensures authentication succeeds with Gmail SMTP.
+    const pass = host && host.toLowerCase().includes("gmail") && rawPass ? rawPass.replace(/\s+/g, "") : rawPass;
 
     if (host && user && pass) {
       this.transporter = nodemailer.createTransport({
@@ -315,7 +318,10 @@ export class EmailService {
       }
     }
 
-    const fromAddress = process.env.SMTP_FROM?.trim() || '"Advance Pay Boutique" <receipts@advancepay.com>';
+    const user = process.env.SMTP_USER?.trim();
+    const fromAddress =
+      process.env.SMTP_FROM?.trim() ||
+      (user ? `"Advance Pay" <${user}>` : '"Advance Pay Boutique" <receipts@advancepay.com>');
 
     try {
       await this.transporter.sendMail({
