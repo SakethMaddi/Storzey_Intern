@@ -17,27 +17,6 @@ export interface NavItemConfig {
 
 const NAV_ITEMS: NavItemConfig[] = [
   {
-    id: "orders",
-    label: "Orders",
-    icon: (active) => (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke={active ? "#0284c7" : "currentColor"}
-        strokeWidth={active ? "2.2" : "1.8"}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
-        <path d="M3 6h18" />
-        <path d="M16 10a4 4 0 0 1-8 0" />
-      </svg>
-    ),
-  },
-  {
     id: "customers",
     label: "Customers",
     icon: (active) => (
@@ -56,6 +35,27 @@ const NAV_ITEMS: NavItemConfig[] = [
         <circle cx="9" cy="7" r="4" />
         <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
+  {
+    id: "orders",
+    label: "Orders",
+    icon: (active) => (
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={active ? "#0284c7" : "currentColor"}
+        strokeWidth={active ? "2.2" : "1.8"}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+        <path d="M3 6h18" />
+        <path d="M16 10a4 4 0 0 1-8 0" />
       </svg>
     ),
   },
@@ -138,7 +138,7 @@ export function HeaderBar({
   ownerName,
   businessName,
   onLogout,
-  activeTab = "orders",
+  activeTab = "customers",
   onTabChange,
 }: HeaderBarProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -197,9 +197,9 @@ export function HeaderBar({
         <div className="owner-top-left">
           <button
             type="button"
-            onClick={() => onTabChange?.("orders")}
+            onClick={() => onTabChange?.("customers")}
             className="owner-brand-btn"
-            aria-label="Advance Pay Orders"
+            aria-label="Advance Pay Customers"
           >
             <div className="brand-mark-gem" aria-hidden="true">
               AP
@@ -293,6 +293,34 @@ export function HeaderBar({
                 </div>
 
                 <div className="dropdown-nav-section">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setDropdownOpen(false);
+                      onTabChange?.("customers");
+                    }}
+                    className={`dropdown-item ${currentTab === "customers" ? "active" : ""}`}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    <span>Customers</span>
+                  </button>
+
                   <button
                     type="button"
                     role="menuitem"

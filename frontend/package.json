@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --test --experimental-strip-types src/qa-frontend.test.ts src/same-origin-proxy.test.ts src/razorpay-checkout.test.ts src/auth-error-handling.test.ts src/customer-documents.test.ts src/features/orders/order-wizard.test.ts src/features/orders/order-list-query.test.ts"
+    "test": "node --test --experimental-strip-types src/qa-frontend.test.ts src/same-origin-proxy.test.ts src/razorpay-checkout.test.ts src/auth-error-handling.test.ts src/customer-documents.test.ts src/features/orders/order-wizard.test.ts src/features/orders/order-list-query.test.ts src/features/customers/customer-workflow.test.ts"
   },
   "dependencies": {
     "axios": "^1.21.0",

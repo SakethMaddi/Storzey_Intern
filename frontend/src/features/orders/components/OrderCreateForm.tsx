@@ -275,6 +275,25 @@ export function OrderCreateForm({
                   Change
                 </button>
               </div>
+            ) : customers.length === 0 ? (
+              <div className="customer-picker-empty" style={{ textAlign: "center", padding: "28px 16px" }}>
+                <div style={{ fontSize: "15px", fontWeight: 600, color: "var(--slate-800)", marginBottom: "6px" }}>
+                  No Customers Found
+                </div>
+                <p style={{ fontSize: "13px", color: "var(--slate-600)", margin: "0 0 16px" }}>
+                  An order must belong to a customer. Please add a customer first to create an order.
+                </p>
+                {onStartAddCustomer && (
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={onStartAddCustomer}
+                    disabled={isSubmittingOrder}
+                  >
+                    + Add Customer First
+                  </button>
+                )}
+              </div>
             ) : (
               <div className="customer-picker-wrap">
                 <div className="field-group">

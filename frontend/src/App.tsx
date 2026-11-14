@@ -80,7 +80,7 @@ function AdminApp({
   const [selectedOrder, setSelectedOrder] = useState<number | null>(initialSelectedOrderId ?? null);
 
   // Navigation tab and archival toggles
-  const [activeTab, setActiveTab] = useState<NavTab>(initialTab || "orders");
+  const [activeTab, setActiveTab] = useState<NavTab>(initialTab || "customers");
   const [showArchivedCustomers, setShowArchivedCustomers] = useState(false);
   const [showArchivedOrders, setShowArchivedOrders] = useState(false);
 
@@ -777,6 +777,14 @@ function AdminApp({
     });
   };
 
+  const handleCreateOrderForCustomer = (customer: Customer) => {
+    setCustomerId(String(customer.id));
+    if (orderErrors.customerId) {
+      setOrderErrors((prev) => ({ ...prev, customerId: undefined }));
+    }
+    openSection("new-order");
+  };
+
   useEffect(() => {
     if (initialOrders) {
       setLoadingInitial(false);
@@ -1457,6 +1465,7 @@ function AdminApp({
               orders={orders}
               payments={payments}
               onOpenOrder={openCustomerOrder}
+              onCreateOrderForCustomer={handleCreateOrderForCustomer}
             />
           </section>
           )}

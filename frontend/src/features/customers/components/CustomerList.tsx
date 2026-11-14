@@ -33,6 +33,7 @@ export interface CustomerListProps {
   orders: Order[];
   payments: Record<number, Payment[]>;
   onOpenOrder: (customer: Customer, orderId?: number) => void;
+  onCreateOrderForCustomer?: (customer: Customer) => void;
 }
 
 function formatDate(value?: string | null): string {
@@ -88,6 +89,7 @@ export function CustomerList({
   orders,
   payments,
   onOpenOrder,
+  onCreateOrderForCustomer,
 }: CustomerListProps) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
@@ -115,6 +117,19 @@ export function CustomerList({
     <div className="table-actions-inline" onClick={(e) => e.stopPropagation()}>
       {!showArchived ? (
         <>
+          {onCreateOrderForCustomer && !customer.isArchived && (
+            <button
+              type="button"
+              className="btn-action-sm btn-action-order"
+              onClick={(event) => {
+                event.stopPropagation();
+                onCreateOrderForCustomer(customer);
+              }}
+              title={`Create order for ${customer.name}`}
+            >
+              + Create Order
+            </button>
+          )}
           <button
             type="button"
             className="btn-action-sm"
