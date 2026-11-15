@@ -1595,6 +1595,14 @@ function OwnerPortal() {
   const [loginNotice, setLoginNotice] = useState("");
 
   const checkSession = async () => {
+    // If the user just logged out (flag set by handleLogout before page reload),
+    // skip the /auth/me check entirely so a stale cookie cannot auto-relog them in.
+    if (localStorage.getItem("ap_logged_out") === "1") {
+      localStorage.removeItem("ap_logged_out");
+      setIsAuthenticated(false);
+      setSessionChecked(true);
+      return;
+    }
     try {
       const res = await axios.get(`${API_BASE}/auth/me`);
       if (res.data?.success && res.data?.data?.role === "owner") {
@@ -1633,9 +1641,10 @@ function OwnerPortal() {
     } finally {
       setIsAuthenticated(false);
       setOwnerEmail("");
+      // Set a flag BEFORE the page reloads so checkSession() skips /auth/me
+      // even if the browser's HttpOnly cookie wasn't cleared by the server yet.
+      localStorage.setItem("ap_logged_out", "1");
       // Force a full page navigation so the browser re-evaluates cookies.
-      // If the server cleared the cookie, it will NOT be sent on the next
-      // GET /auth/me, preventing auto-relogin after signout.
       window.location.href = "/";
     }
   };
