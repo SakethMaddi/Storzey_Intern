@@ -1633,6 +1633,10 @@ function OwnerPortal() {
     } finally {
       setIsAuthenticated(false);
       setOwnerEmail("");
+      // Force a full page navigation so the browser re-evaluates cookies.
+      // If the server cleared the cookie, it will NOT be sent on the next
+      // GET /auth/me, preventing auto-relogin after signout.
+      window.location.href = "/";
     }
   };
 

@@ -213,6 +213,10 @@ export async function authRoutes(app: FastifyInstance) {
   // POST /auth/logout - Clear session
   app.post("/auth/logout", async (_request, reply) => {
     clearSessionCookie(reply, process.env.NODE_ENV === "production");
+    // Prevent any caching of the logout response so the browser always
+    // sees the fresh Set-Cookie: Max-Age=0 header.
+    reply.header("Cache-Control", "no-store, no-cache, must-revalidate");
+    reply.header("Pragma", "no-cache");
 
     return reply.send({
       success: true,
